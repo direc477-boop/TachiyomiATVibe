@@ -12,41 +12,13 @@ import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import java.io.FileNotFoundException
 
-/** Experimental SM8650 NPU MCV2 route: HARD FAIL, no fallback; probe-validated bring-up. */
+/** SM8650 NPU MCV2 W8A8 route: HARD FAIL, no fallback; cross-series-calibrated artifact. */
 internal class NpuMangaColorizationEngine(
     private val deps: Dependencies,
-    private val variant: Variant = Variant.FP32,
 ) : PageColorizationEngine {
 
     /** Production wiring: the Android context drives artifact, pre-check, and LiteRT. */
-    constructor(context: Context, variant: Variant = Variant.FP32) : this(Dependencies.from(context, variant), variant)
-
-    /** Supported NPU model variants for Manga Colorization V2. */
-    enum class Variant(
-        val assetPath: String,
-        val fileName: String,
-        val expectedSha256: String,
-        val stampPrefix: String,
-        val width: Int,
-        val height: Int,
-    ) {
-        FP32(
-            assetPath = "models/coloring/manga_colorize_npu_sm8650_fp32.tflite",
-            fileName = "manga_colorize_npu_sm8650_fp32.tflite",
-            expectedSha256 = "d3d26e5e1af43213a8b6d9a9cca23b30e1f432e5f2dbf02398ef31199a7ff1f4",
-            stampPrefix = "MC_V2_LITERT_NPU_FP32_SM8650_704x512",
-            width = 512,
-            height = 704,
-        ),
-        W8A8(
-            assetPath = "models/coloring/manga_colorize_npu_sm8650_w8a8.tflite",
-            fileName = "manga_colorize_npu_sm8650_w8a8.tflite",
-            expectedSha256 = "d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9",
-            stampPrefix = "MC_V2_LITERT_NPU_W8A8_SM8650_832x576",
-            width = 576,
-            height = 832,
-        ),
-    }
+    constructor(context: Context) : this(Dependencies.from(context))
 
     /** One live compiled model with its bound buffers and owning environment. */
     private class Session(
@@ -67,15 +39,15 @@ internal class NpuMangaColorizationEngine(
             val precheck = deps.precheck()
             check(precheck == null) { precheck ?: "Qualcomm NPU runtime unavailable" }
             val artifact = deps.artifact() ?: error("MCV2 NPU artifact is not present in app assets")
-            check(artifact.sha256 == variant.expectedSha256) {
+            check(artifact.sha256 == EXPECTED_ARTIFACT_SHA256) {
                 "MCV2 NPU artifact hash ${artifact.sha256} does not match the compiled contract " +
-                    "(${variant.expectedSha256}); refusing to run an unverified artifact on the NPU"
+                    "($EXPECTED_ARTIFACT_SHA256); refusing to run an unverified artifact on the NPU"
             }
             val runtime = deps.openSession(artifact)
             session = Session(runtime, artifact.sha256)
-            stamp = "${variant.stampPrefix}_${artifact.sha256}"
+            stamp = "${STAMP_PREFIX}_${artifact.sha256}"
             logcat(LogPriority.INFO) {
-                "[Mcv2NpuColor] NPU ready (${variant.name} ${variant.height}x${variant.width} apply_plugin, sha256=${artifact.sha256})"
+                "[Mcv2NpuColor] NPU ready (W8A8 ${INPUT_HEIGHT}x${INPUT_WIDTH} apply_plugin, sha256=${artifact.sha256})"
             }
             true
         } catch (failure: Throwable) {
@@ -104,7 +76,7 @@ internal class NpuMangaColorizationEngine(
             initFailure?.let { "MCV2 NPU colorization unavailable (no fallback): $it" }
                 ?: "MCV2 NPU colorization unavailable (no fallback)",
         )
-        val letterbox = MangaColorizationLetterbox.fit(source.width, source.height, variant.width, variant.height)
+        val letterbox = MangaColorizationLetterbox.fit(source.width, source.height, INPUT_WIDTH, INPUT_HEIGHT)
         check(!letterbox.requiresCpuFallback) {
             "MCV2 NPU colorization does not support pages below " +
                 "${MINIMUM_CONTENT_DIMENSION}px content (got ${letterbox.width}x${letterbox.height}); " +
@@ -120,11 +92,11 @@ internal class NpuMangaColorizationEngine(
         val input = MangaColorizationPreprocessor.grayNchwFromGrayPlane(
             preprocessed.plane,
             letterbox,
-            variant.width,
-            variant.height,
+            INPUT_WIDTH,
+            INPUT_HEIGHT,
         )
         val output = active.runtime.run(input)
-        val expectedOutputCount = variant.width * variant.height * 3
+        val expectedOutputCount = OUTPUT_FLOAT_COUNT
         check(output.size == expectedOutputCount) {
             "MCV2 NPU returned ${output.size} floats; expected $expectedOutputCount"
         }
@@ -132,7 +104,7 @@ internal class NpuMangaColorizationEngine(
         check(output.any { it != 0f }) { "MCV2 NPU returned an all-zero image" }
 
         val coloredWork = MangaColorizationImageProcessing.interleavedRgb01ToBitmap(
-            MangaColorizationImageProcessing.cropRgb01Letterbox(output, letterbox, variant.width, variant.height),
+            MangaColorizationImageProcessing.cropRgb01Letterbox(output, letterbox, INPUT_WIDTH, INPUT_HEIGHT),
             letterbox.width,
             letterbox.height,
         )
@@ -172,12 +144,12 @@ internal class NpuMangaColorizationEngine(
         }
 
         internal companion object {
-            fun from(context: Context, variant: Variant = Variant.FP32): Dependencies {
+            fun from(context: Context): Dependencies {
                 val nativeLibraryDir = context.applicationInfo.nativeLibraryDir
                 return Dependencies(
-                    artifact = { extractModel(context, variant) },
+                    artifact = { extractModel(context) },
                     precheck = { dispatchPrecheck(File(nativeLibraryDir)) },
-                    openSession = { artifact -> LiteRtSession.open(context, artifact, variant) },
+                    openSession = { artifact -> LiteRtSession.open(context, artifact) },
                 )
             }
 
@@ -190,9 +162,9 @@ internal class NpuMangaColorizationEngine(
             }
 
             /** Streams the asset into a version-stamped cache, hashing as it copies. */
-            private fun extractModel(context: Context, variant: Variant): Artifact? {
-                val assetPath = variant.assetPath
-                val fileName = variant.fileName
+            private fun extractModel(context: Context): Artifact? {
+                val assetPath = MODEL_ASSET
+                val fileName = MODEL_FILE_NAME
                 val assetExists = try {
                     context.assets.open(assetPath).use { }
                     true
@@ -244,7 +216,7 @@ internal class NpuMangaColorizationEngine(
         }
     }
 
-    /** The device-validated probe configuration: DispatchLibraryDir + plain NPU options. */
+    /** Bring-up configuration: DispatchLibraryDir + plain NPU options. */
     private class LiteRtSession private constructor(
         private val environment: Environment,
         private val model: CompiledModel,
@@ -271,7 +243,7 @@ internal class NpuMangaColorizationEngine(
 
         companion object {
             /** Pure AOT-load; a compiler plugin engaging JIT here is a red flag. */
-            fun open(context: Context, artifact: Dependencies.Artifact, variant: Variant): LiteRtSession {
+            fun open(context: Context, artifact: Dependencies.Artifact): LiteRtSession {
                 val environment = Environment.create(
                     context.applicationContext,
                     mapOf(Environment.Option.DispatchLibraryDir to context.applicationInfo.nativeLibraryDir),
@@ -285,8 +257,8 @@ internal class NpuMangaColorizationEngine(
                         CompiledModel.Options(Accelerator.NPU),
                         environment,
                     )
-                    validateTensor(model, INPUT_NAME, listOf(1, 5, variant.height, variant.width), isInput = true)
-                    validateTensor(model, OUTPUT_NAME, listOf(1, variant.height, variant.width, 3), isInput = false)
+                    validateTensor(model, INPUT_NAME, listOf(1, 5, INPUT_HEIGHT, INPUT_WIDTH), isInput = true)
+                    validateTensor(model, OUTPUT_NAME, listOf(1, INPUT_HEIGHT, INPUT_WIDTH, 3), isInput = false)
                     input = model.createInputBuffer(INPUT_NAME, SIGNATURE)
                     output = model.createOutputBuffer(OUTPUT_NAME, SIGNATURE)
                     return LiteRtSession(environment, model, input, output)
@@ -316,25 +288,25 @@ internal class NpuMangaColorizationEngine(
     }
 
     internal companion object {
-        const val MODEL_ASSET = "models/coloring/manga_colorize_npu_sm8650_fp32.tflite"
+        const val MODEL_ASSET = "models/coloring/manga_colorize_npu_sm8650_w8a8.tflite"
         const val MODEL_CACHE_DIR = "tachiyomi-models/coloring"
         const val MODEL_CACHE_PREFERENCES = "mcv2_npu_model_cache"
-        const val MODEL_FILE_NAME = "manga_colorize_npu_sm8650_fp32.tflite"
+        const val MODEL_FILE_NAME = "manga_colorize_npu_sm8650_w8a8.tflite"
         const val KEY_APP_UPDATE_TIME = "app_update_time_"
         const val KEY_EXTRACTED_SIZE = "extracted_size_"
         const val KEY_SHA256 = "sha256_"
 
-        // The device-validated FP32 artifact (probe PKG110, SM8650/HTP v75, 590/590
-        // ops in 1 HTP partition); the fp16weights twin (193 partitions) is rejected.
-        const val EXPECTED_ARTIFACT_SHA256 = "d3d26e5e1af43213a8b6d9a9cca23b30e1f432e5f2dbf02398ef31199a7ff1f4"
+        // The cross-series-calibrated W8A8 apply_plugin artifact (mixed manga+SASA
+        // calibration; 35.60 dB held-out via evaluate_cross_series.py).
+        const val EXPECTED_ARTIFACT_SHA256 = "d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9"
 
-        const val EXPECTED_W8A8_ARTIFACT_SHA256 = "d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9"
+        const val STAMP_PREFIX = "MC_V2_LITERT_NPU_W8A8_SM8650_832x576"
 
         const val SIGNATURE = "serving_default"
         const val INPUT_NAME = "input"
         const val OUTPUT_NAME = "rgb"
-        const val INPUT_WIDTH = 512
-        const val INPUT_HEIGHT = 704
+        const val INPUT_WIDTH = 576
+        const val INPUT_HEIGHT = 832
         const val OUTPUT_FLOAT_COUNT = INPUT_WIDTH * INPUT_HEIGHT * 3
 
         // Conservative GPU-backend minimum: behavior below 256px content is

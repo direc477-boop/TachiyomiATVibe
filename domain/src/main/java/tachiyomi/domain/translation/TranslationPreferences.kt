@@ -129,16 +129,9 @@ class TranslationPreferences(
      */
     fun translationColorizationEnabled() = preferenceStore.getBoolean("translation_colorization_enabled", false)
 
-    /** Experimental Qualcomm NPU pass for the int8 DiT; attempted only after GPU fails. */
-    fun translationColorizationNpu() = preferenceStore.getBoolean("translation_colorization_npu", false)
-
     /** Which colorization engine runs when colorization is enabled. */
     fun translationColorizationModel(): Preference<ColorizationModel> =
         preferenceStore.getEnum("translation_colorization_model", ColorizationModel.DEFAULT)
-
-    /** Resolution preset for the explicit MCV2 INT8 CPU route. */
-    fun translationColorizationQuality(): Preference<ColorizationQuality> =
-        preferenceStore.getEnum("translation_colorization_quality", ColorizationQuality.DEFAULT)
 
     /**
      * Master gate for on-device QuickSRNetLarge page upscaling. Default OFF.

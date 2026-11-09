@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,12 +25,10 @@ import eu.kanade.presentation.components.designsystem.SectionHeading
 import eu.kanade.presentation.components.designsystem.SelectionTile
 import eu.kanade.presentation.components.designsystem.SwitchCard
 import eu.kanade.presentation.translation.colorizationModelOptions
-import eu.kanade.presentation.translation.colorizationQualityOptions
 import eu.kanade.presentation.translation.neuralInpaintOptions
 import eu.kanade.presentation.translation.ocrModelOptions
 import eu.kanade.tachiyomi.ui.reader.TranslationSettingsState
 import tachiyomi.domain.translation.ColorizationModel
-import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.OcrModel
 import tachiyomi.i18n.at.ATMR
@@ -52,7 +49,6 @@ internal fun TranslationVisionSection(
     onColorizationEnabledChange: (Boolean) -> Unit,
     onAutoColorizeChange: (Boolean) -> Unit,
     onColorizationModelChange: (ColorizationModel) -> Unit,
-    onColorizationQualityChange: (ColorizationQuality) -> Unit,
     onUpscalingEnabledChange: (Boolean) -> Unit,
     onColorizeChapterClick: () -> Unit,
     onColorizePageClick: () -> Unit,
@@ -169,17 +165,6 @@ internal fun TranslationVisionSection(
                     onSelect = onColorizationModelChange,
                     placeholder = stringResource(ATMR.strings.pref_colorization_model),
                 )
-                if (state.colorizationModel == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
-                    val qualityOptions = colorizationQualityOptions()
-                    Text(text = stringResource(ATMR.strings.pref_colorization_quality))
-                    SearchableConfigSelectorBox(
-                        selectedLabel = qualityOptions.firstOrNull { it.value == state.colorizationQuality }?.label
-                            ?: state.colorizationQuality.name,
-                        options = qualityOptions,
-                        onSelect = onColorizationQualityChange,
-                        placeholder = stringResource(ATMR.strings.pref_colorization_quality),
-                    )
-                }
             }
         }
 

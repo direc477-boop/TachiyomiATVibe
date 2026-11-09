@@ -15,10 +15,10 @@ class ColorizationModelTest {
     }
 
     @Test
-    fun `npu route resolves and unknown values resolve to null`() {
-        ColorizationModel.fromPrefOrNull("MANGA_COLORIZATION_V2_NPU") shouldBe
-            ColorizationModel.MANGA_COLORIZATION_V2_NPU
+    fun `hybrid route resolves and unknown values resolve to null`() {
+        ColorizationModel.fromPrefOrNull("MANGA_LIGHT_SAM_NPU_GPU") shouldBe
+            ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU
         ColorizationModel.fromPrefOrNull("NONSENSE") shouldBe null
-        ColorizationModel.DEFAULT shouldBe ColorizationModel.MANGA_COLORIZATION_V2
+        ColorizationModel.DEFAULT shouldBe ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU
     }
 }

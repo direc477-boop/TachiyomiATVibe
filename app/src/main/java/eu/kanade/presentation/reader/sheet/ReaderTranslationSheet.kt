@@ -21,7 +21,6 @@ import eu.kanade.presentation.components.designsystem.SheetHeader
 import eu.kanade.tachiyomi.ui.reader.TranslationSettingsState
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
-import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.OcrModel
 import tachiyomi.domain.translation.StandardEngine
@@ -55,7 +54,6 @@ fun ReaderTranslationSheet(
     onColorizationEnabledChange: (Boolean) -> Unit,
     onAutoColorizeChange: (Boolean) -> Unit = {},
     onColorizationModelChange: (ColorizationModel) -> Unit,
-    onColorizationQualityChange: (ColorizationQuality) -> Unit,
     onUpscalingEnabledChange: (Boolean) -> Unit = {},
     onColorizeChapterClick: () -> Unit,
     onColorizePageClick: () -> Unit,
@@ -138,7 +136,6 @@ fun ReaderTranslationSheet(
                     onColorizationEnabledChange = onColorizationEnabledChange,
                     onAutoColorizeChange = onAutoColorizeChange,
                     onColorizationModelChange = onColorizationModelChange,
-                    onColorizationQualityChange = onColorizationQualityChange,
                     onUpscalingEnabledChange = onUpscalingEnabledChange,
                     onColorizeChapterClick = onColorizeChapterClick,
                     onColorizePageClick = onColorizePageClick,

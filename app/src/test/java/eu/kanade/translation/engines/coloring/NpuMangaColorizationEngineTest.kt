@@ -94,6 +94,8 @@ class NpuMangaColorizationEngineTest {
         engine.isAvailable() shouldBe true
         engine.initializationError() shouldBe null
         engine.currentStamp() shouldContain "NPU"
+        engine.currentStamp() shouldContain "W8A8"
+        engine.currentStamp() shouldContain "832x576"
         engine.currentStamp() shouldContain NpuMangaColorizationEngine.EXPECTED_ARTIFACT_SHA256
     }
 
@@ -105,37 +107,11 @@ class NpuMangaColorizationEngineTest {
     }
 
     @Test
-    fun `healthy engine with W8A8 variant is available and stamps W8A8`() {
-        val engine = NpuMangaColorizationEngine(
-            deps = FakeDeps(artifactResult = { artifact(sha256 = NpuMangaColorizationEngine.EXPECTED_W8A8_ARTIFACT_SHA256) }).toDependencies(),
-            variant = NpuMangaColorizationEngine.Variant.W8A8,
-        )
-
-        engine.isAvailable() shouldBe true
-        engine.initializationError() shouldBe null
-        engine.currentStamp() shouldContain "W8A8"
-        engine.currentStamp() shouldContain NpuMangaColorizationEngine.EXPECTED_W8A8_ARTIFACT_SHA256
-        engine.currentStamp() shouldContain "832x576"
-    }
-
-    @Test
-    fun `NPU variants retain their model dimensions`() {
-        NpuMangaColorizationEngine.Variant.FP32.width shouldBe 512
-        NpuMangaColorizationEngine.Variant.FP32.height shouldBe 704
-        NpuMangaColorizationEngine.Variant.W8A8.width shouldBe 576
-        NpuMangaColorizationEngine.Variant.W8A8.height shouldBe 832
-    }
-
-    @Test
-    fun `wrong artifact hash for W8A8 is refused`() {
-        val engine = NpuMangaColorizationEngine(
-            deps = FakeDeps(artifactResult = { artifact(sha256 = "invalid-w8a8-hash") }).toDependencies(),
-            variant = NpuMangaColorizationEngine.Variant.W8A8,
-        )
-
-        engine.isAvailable() shouldBe false
-        engine.initializationError() shouldContain "hash"
-        engine.initializationError() shouldContain NpuMangaColorizationEngine.EXPECTED_W8A8_ARTIFACT_SHA256
+    fun `model dimensions match the W8A8 apply_plugin artifact`() {
+        NpuMangaColorizationEngine.INPUT_WIDTH shouldBe 576
+        NpuMangaColorizationEngine.INPUT_HEIGHT shouldBe 832
+        NpuMangaColorizationEngine.OUTPUT_FLOAT_COUNT shouldBe NpuMangaColorizationEngine.INPUT_WIDTH *
+            NpuMangaColorizationEngine.INPUT_HEIGHT * 3
     }
 
     @Test

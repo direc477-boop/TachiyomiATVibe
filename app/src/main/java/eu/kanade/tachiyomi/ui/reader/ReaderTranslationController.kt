@@ -46,7 +46,6 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
-import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.OcrModel
 import tachiyomi.domain.translation.StandardEngine
@@ -758,10 +757,6 @@ internal class ReaderTranslationController(
 
     internal fun setTranslationColorizationModel(model: ColorizationModel) {
         translationPreferences.translationColorizationModel().set(model)
-    }
-
-    internal fun setTranslationColorizationQuality(quality: ColorizationQuality) {
-        translationPreferences.translationColorizationQuality().set(quality)
     }
 
     internal fun setTranslationUpscalingEnabled(enabled: Boolean) {

@@ -15,13 +15,9 @@ import eu.kanade.translation.coordinator.TranslationPendingRequestStore
 import eu.kanade.translation.coordinator.TranslationProgressProjection
 import eu.kanade.translation.coordinator.TranslationRequestCoordinator
 import eu.kanade.translation.coordinator.TranslationSessionCoordinator
-import eu.kanade.translation.engines.coloring.GpuFirstMangaColorizationEngine
-import eu.kanade.translation.engines.coloring.MangaColorizationInt8Engine
-import eu.kanade.translation.engines.coloring.MangaLightNpuColorizationEngine
 import eu.kanade.translation.engines.coloring.MangaLightHybridColorizationEngine
 import eu.kanade.translation.engines.coloring.NpuMangaColorizationEngine
 import eu.kanade.translation.engines.coloring.PageColorizationEngine
-import eu.kanade.translation.engines.coloring.SanaMangaColoringEngine
 import eu.kanade.translation.engines.inpainting.InpaintingHardwareOverride
 import eu.kanade.translation.engines.inpainting.litert.LiteRTMangaInpaintingEngine
 import eu.kanade.translation.engines.upscaling.PageUpscalingEngine
@@ -49,7 +45,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -57,7 +52,6 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.translation.ColorizationModel
-import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.TranslationPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -151,7 +145,7 @@ class TranslationManager private constructor(
      */
     internal var colorizationEngine: PageColorizationEngine? =
         if (testConstruction == null) {
-            buildColorizationEngine(currentColorizationSelection())
+            buildColorizationEngine(currentColorizationModel())
                 .also { processor.colorizationEngine = it }
         } else {
             null
@@ -184,19 +178,7 @@ class TranslationManager private constructor(
         // in-flight COLOR stage.
         if (testConstruction == null) {
             applicationScope.launch {
-                combine(
-                    translationPreferences.translationColorizationModel().changes(),
-                    translationPreferences.translationColorizationQuality().changes(),
-                ) { model, quality ->
-                    ColorizationSelection(
-                        model = model,
-                        quality = if (model == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
-                            quality
-                        } else {
-                            ColorizationQuality.DEFAULT
-                        },
-                    )
-                }
+                translationPreferences.translationColorizationModel().changes()
                     .distinctUntilChanged()
                     .drop(1)
                     .collect(::swapColorizationEngine)
@@ -204,37 +186,17 @@ class TranslationManager private constructor(
         }
     }
 
-    private data class ColorizationSelection(
-        val model: ColorizationModel,
-        val quality: ColorizationQuality,
-    )
+    private fun currentColorizationModel(): ColorizationModel =
+        translationPreferences.translationColorizationModel().get()
 
-    private fun currentColorizationSelection(): ColorizationSelection {
-        val model = translationPreferences.translationColorizationModel().get()
-        val quality = if (model == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
-            translationPreferences.translationColorizationQuality().get()
-        } else {
-            ColorizationQuality.DEFAULT
-        }
-        return ColorizationSelection(model, quality)
-    }
-
-    private fun buildColorizationEngine(selection: ColorizationSelection): PageColorizationEngine = when (selection.model) {
-        ColorizationModel.MANGA_COLORIZATION_V2 -> GpuFirstMangaColorizationEngine(context)
-        ColorizationModel.MANGA_COLORIZATION_V2_INT8 -> MangaColorizationInt8Engine(context, selection.quality)
-        ColorizationModel.MANGA_COLORIZATION_V2_NPU -> NpuMangaColorizationEngine(context, NpuMangaColorizationEngine.Variant.FP32)
-        ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8 -> NpuMangaColorizationEngine(context, NpuMangaColorizationEngine.Variant.W8A8)
-        ColorizationModel.SANA_V2 -> SanaMangaColoringEngine(
-            context = context,
-            enableExperimentalNpu = translationPreferences.translationColorizationNpu().get(),
-        )
-        ColorizationModel.MANGA_LIGHT_NPU_SM8650 -> MangaLightNpuColorizationEngine(context)
+    private fun buildColorizationEngine(model: ColorizationModel): PageColorizationEngine = when (model) {
+        ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8 -> NpuMangaColorizationEngine(context)
         ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU -> MangaLightHybridColorizationEngine(context)
     }
 
-    private fun swapColorizationEngine(selection: ColorizationSelection) {
+    private fun swapColorizationEngine(model: ColorizationModel) {
         val previous = colorizationEngine
-        val next = buildColorizationEngine(selection)
+        val next = buildColorizationEngine(model)
         processor.colorizationEngine = next
         colorizationEngine = next
         previous?.close()

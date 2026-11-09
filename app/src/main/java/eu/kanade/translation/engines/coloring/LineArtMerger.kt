@@ -3,45 +3,10 @@ package eu.kanade.translation.engines.coloring
 import kotlin.math.pow
 
 /**
- * Kotlin port of sana-manga-coloring-v2's merge_lines: the model was trained
- * on Gaussian-blurred Lab lightness, so inference keeps the model's colour +
- * coarse lightness and re-imposes the B/W page's high-frequency lightness
- * (line art, text) scaled by [ink]: L' = L_color + ink * (L_bw - blur(L_bw,
- * sigma)), clamped to [0, 100]. Colour channels (a, b) pass through
- * untouched. Mirrors kornia sRGB<->Lab (D65) and gaussian_blur2d (normalized
- * kernel, reflect padding). Lab vectors pinned against scikit-image in
- * LineArtMergerTest.
+ * kornia-pinned sRGB<->CIELAB (D65) converters shared by the CPU rendering
+ * path. Lab vectors pinned against scikit-image in LineArtMergerTest.
  */
 object LineArtMerger {
-
-    /**
-     * [coloredRgb] and [bwRgb] are row-major RGB in [0,1], 3 floats per pixel.
-     * Returns the merged RGB in [0,1].
-     */
-    fun merge(
-        coloredRgb: FloatArray,
-        bwRgb: FloatArray,
-        width: Int,
-        height: Int,
-        sigma: Float,
-        ink: Float,
-    ): FloatArray {
-        require(coloredRgb.size == bwRgb.size) { "colored/BW buffer size mismatch" }
-        require(width > 0 && height > 0) { "invalid merge dimensions" }
-        val coloredLab = rgbToLab(coloredRgb)
-        val bwL = labLightnessOf(bwRgb)
-        val detail = FloatArray(width * height)
-        GaussianBlur.blur(bwL, width, height, sigma, detail)
-        for (i in detail.indices) {
-            detail[i] = ink * (bwL[i] - detail[i])
-        }
-        val mergedLab = FloatArray(coloredLab.size)
-        System.arraycopy(coloredLab, 0, mergedLab, 0, coloredLab.size)
-        for (i in 0 until width * height) {
-            mergedLab[i * 3] = (coloredLab[i * 3] + detail[i]).coerceIn(0f, 100f)
-        }
-        return labToRgb(mergedLab)
-    }
 
     /** kornia rgb_to_lab: sRGB D65 linearization -> XYZ -> CIELAB. */
     internal fun rgbToLab(rgb: FloatArray): FloatArray {
@@ -69,15 +34,6 @@ object LineArtMerger {
             rgb[p * 3 + 2] = xyzToSrgbComponent(XYZ_TO_SRGB_R3 * x + XYZ_TO_SRGB_G3 * y + XYZ_TO_SRGB_B3 * z)
         }
         return rgb
-    }
-
-    private fun labLightnessOf(rgb: FloatArray): FloatArray {
-        val lightness = FloatArray(rgb.size / 3)
-        for (p in lightness.indices) {
-            val x = srgbToXyz(rgb[p * 3], rgb[p * 3 + 1], rgb[p * 3 + 2])
-            lightness[p] = 116f * fRatio(x[1] / WHITE_Y) - 16f
-        }
-        return lightness
     }
 
     // CIE condition tests the XYZ ratio itself, not its cube; testing the cube

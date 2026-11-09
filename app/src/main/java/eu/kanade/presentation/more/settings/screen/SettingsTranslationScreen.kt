@@ -29,7 +29,6 @@ import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
-import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.GeminiThinkingMode
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.StandardEngine
@@ -75,12 +74,6 @@ object SettingsTranslationScreen : SearchableSettings {
         translationPreferences: TranslationPreferences,
     ): Preference.PreferenceGroup {
         val colorizationEnabled by translationPreferences.translationColorizationEnabled().collectAsState()
-        val selectedModel by translationPreferences.translationColorizationModel().collectAsState()
-        val qualities = mapOf(
-            ColorizationQuality.FAST to stringResource(ATMR.strings.pref_colorization_quality_fast),
-            ColorizationQuality.BALANCED to stringResource(ATMR.strings.pref_colorization_quality_balanced),
-            ColorizationQuality.HIGH to stringResource(ATMR.strings.pref_colorization_quality_high),
-        )
         val models = colorizationModelOptions().associate { it.value to it.label }
         return Preference.PreferenceGroup(
             title = stringResource(ATMR.strings.pref_colorization_title),
@@ -101,12 +94,6 @@ object SettingsTranslationScreen : SearchableSettings {
                     title = stringResource(ATMR.strings.pref_colorization_model),
                     entries = models.toImmutableMap(),
                     enabled = colorizationEnabled,
-                ),
-                Preference.PreferenceItem.ListPreference(
-                    pref = translationPreferences.translationColorizationQuality(),
-                    title = stringResource(ATMR.strings.pref_colorization_quality),
-                    entries = qualities.toImmutableMap(),
-                    enabled = colorizationEnabled && selectedModel == ColorizationModel.MANGA_COLORIZATION_V2_INT8,
                 ),
             ),
         )

@@ -670,7 +670,6 @@ class ReaderActivity : BaseActivity() {
                         onColorizationEnabledChange = { viewModel.setTranslationColorizationEnabled(it) },
                         onAutoColorizeChange = { viewModel.setAutoColorize(it) },
                         onColorizationModelChange = { viewModel.setTranslationColorizationModel(it) },
-                        onColorizationQualityChange = { viewModel.setTranslationColorizationQuality(it) },
                         onUpscalingEnabledChange = { viewModel.setTranslationUpscalingEnabled(it) },
                         onColorizeChapterClick = { viewModel.colorizeCurrentChapter() },
                         onColorizePageClick = { viewModel.colorizeCurrentPage() },

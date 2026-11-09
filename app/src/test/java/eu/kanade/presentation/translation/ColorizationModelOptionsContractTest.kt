@@ -10,9 +10,8 @@ import tachiyomi.domain.translation.TranslationPreferences
 
 /**
  * The colorization selector's option list is the single source shared by the
- * reader sheet and the settings screens: it must offer every selectable engine
- * (both SM8650 NPU variants included — the reader list historically dropped
- * them), and a W8A8 selection must persist and read back unchanged.
+ * reader sheet and the settings screens: it must list both surviving engines,
+ * and a W8A8 selection must persist and read back unchanged.
  */
 class ColorizationModelOptionsContractTest {
 
@@ -22,9 +21,9 @@ class ColorizationModelOptionsContractTest {
     }
 
     @Test
-    fun `both SM8650 NPU variants are visible choices`() {
-        colorizationModelValues shouldContain ColorizationModel.MANGA_COLORIZATION_V2_NPU
+    fun `both surviving engines are visible choices`() {
         colorizationModelValues shouldContain ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8
+        colorizationModelValues shouldContain ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU
     }
 
     @Test

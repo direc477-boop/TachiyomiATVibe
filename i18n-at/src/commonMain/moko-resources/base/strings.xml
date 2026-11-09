@@ -66,17 +66,8 @@
     <string name="pref_auto_colorize">Auto-colorize pages (N, N+1)</string>
     <string name="pref_auto_colorize_summary">Color visible and upcoming pages automatically without downloading the chapter</string>
     <string name="pref_colorization_model">Colorization model</string>
-    <string name="pref_colorization_model_mcv2">Manga Colorization v2 (GPU experimental; CPU fallback)</string>
-    <string name="pref_colorization_model_mcv2_npu">Manga Colorization v2 (SM8650 NPU experimental; fails without fallback)</string>
     <string name="pref_colorization_model_mcv2_npu_w8a8">Manga Colorization v2 (SM8650 NPU W8A8 — 576×832, cross-series calibrated, experimental; fails without fallback)</string>
-    <string name="pref_colorization_model_mcv2_int8">Manga Colorization v2 (INT8 CPU)</string>
-    <string name="pref_colorization_model_manga_light_npu">Manga Light (SM8650 NPU experimental, 512×512 generator-only; fails without fallback)</string>
     <string name="pref_colorization_model_manga_light_hybrid">Manga Light (SAM NPU + GPU, 512×512 experimental)</string>
-    <string name="pref_colorization_quality">Colorization quality</string>
-    <string name="pref_colorization_quality_fast">Fast</string>
-    <string name="pref_colorization_quality_balanced">Balanced</string>
-    <string name="pref_colorization_quality_high">High quality</string>
-    <string name="pref_colorization_model_sana">Sana Coloring v2 (LiteRT)</string>
     <string name="pref_upscaling_title">Upscaling</string>
     <string name="pref_upscaling_enabled">QuickSRNetLarge upscaling</string>
     <string name="pref_upscaling_enabled_summary">Experimental — ×4 upscaling of a single ≤128×128 region on NPU (SM8650)</string>

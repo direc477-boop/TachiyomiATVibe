@@ -431,9 +431,21 @@ internal class TranslationProgressProjection(
             }
         }
         .map { snapshot ->
+            val queuedEntry = getQueuedTranslationOrNull(chapterId)
             snapshot
                 .projectQueueStatus(queueStatus)
                 .withQueuePosition(chapterId)
+                .let { projected ->
+                    if (queuedEntry == null) {
+                        projected
+                    } else {
+                        projected.copy(
+                            colorizeOnly = queuedEntry.colorizeOnly,
+                            pausedForCharging = queuedEntry.pausedForCharging &&
+                                projected.state == Translation.State.PAUSED,
+                        )
+                    }
+                }
         }
         .distinctUntilChanged()
 

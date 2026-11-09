@@ -52,7 +52,11 @@ fun ReaderTranslationSheet(
     onTranslationInpaintingModeChange: (String) -> Unit,
     onTranslationInpaintingNeuralModelChange: (NeuralInpaintModel) -> Unit,
     onColorizationEnabledChange: (Boolean) -> Unit,
+    onAutoColorizeChange: (Boolean) -> Unit = {},
     onColorizationModelChange: (ColorizationModel) -> Unit,
+    onUpscalingEnabledChange: (Boolean) -> Unit = {},
+    onColorizeChapterClick: () -> Unit,
+    onColorizePageClick: () -> Unit,
     onTranslationEngineCategoryChange: (TranslationEngineCategory) -> Unit,
     onTranslationStandardEngineChange: (StandardEngine) -> Unit,
     onTranslationDeeplApiKeyChange: (String) -> Unit,
@@ -130,7 +134,11 @@ fun ReaderTranslationSheet(
                     onTranslationInpaintingModeChange = onTranslationInpaintingModeChange,
                     onTranslationInpaintingNeuralModelChange = onTranslationInpaintingNeuralModelChange,
                     onColorizationEnabledChange = onColorizationEnabledChange,
+                    onAutoColorizeChange = onAutoColorizeChange,
                     onColorizationModelChange = onColorizationModelChange,
+                    onUpscalingEnabledChange = onUpscalingEnabledChange,
+                    onColorizeChapterClick = onColorizeChapterClick,
+                    onColorizePageClick = onColorizePageClick,
                 )
 
                 TranslationResetSection(

@@ -76,7 +76,13 @@ internal class BatchTranslationCoordinator(
     private val batchTrackerFactory: (Long, ChapterTranslationStore, List<String>) -> eu.kanade.translation.processing.batch.progress.TranslationBatchProgressTracker? = { _, _, _ -> null },
     private val onBatchClosed: suspend (Manga, Chapter, HttpSource, ChapterTranslationStore) -> Unit = { _, _, _, _ -> },
     private val sessionCoordinator: TranslationSessionCoordinator? = null,
+    // DI-resolved lazily on first use, so test constructions stay Injekt-free.
+    // Kept last: positional test constructions above stay source-compatible.
+    private val onlineColorizeStreams: OnlineColorizePageStreamResolver? = null,
 ) : Closeable {
+
+    private val colorizeStreams: OnlineColorizePageStreamResolver
+        get() = onlineColorizeStreams ?: OnlineColorizePageStreamResolver(Injekt.get())
 
     companion object {
         // Bound the join during chapter deletion.
@@ -122,6 +128,14 @@ internal class BatchTranslationCoordinator(
 
     fun queuedTranslationOrNull(chapterId: Long): Translation? =
         queueState.value.firstOrNull { it.chapter.id == chapterId }
+
+    /** True when the chapter's outstanding queue entry is a colorize-only run still waiting or executing. */
+    fun colorizeOnlyQueuedOrRunning(chapterId: Long): Boolean =
+        queueState.value.any {
+            it.chapter.id == chapterId &&
+                it.colorizeOnly &&
+                (it.status == Translation.State.QUEUE || it.status == Translation.State.TRANSLATING)
+        }
 
     fun rearmQueuedChapter(chapterId: Long): Boolean {
         synchronized(queueMutationLock) {
@@ -673,11 +687,14 @@ internal class BatchTranslationCoordinator(
         }
         if (translation.executionMode == eu.kanade.translation.model.BatchExecutionMode.ONLY_WHILE_CHARGING) {
             val batteryManager = runCatching { context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager }.getOrNull()
-            if (batteryManager != null && !batteryManager.isCharging) {
+            translation.pausedForCharging = batteryManager != null && !batteryManager.isCharging
+            if (translation.pausedForCharging) {
                 logcat(LogPriority.INFO) { "Chapter ${translation.chapter.id} paused: waiting for charging" }
                 translation.status = Translation.State.PAUSED
                 return null
             }
+        } else {
+            translation.pausedForCharging = false
         }
         var store: ChapterTranslationStore? = null
         var tracker: eu.kanade.translation.processing.batch.progress.TranslationBatchProgressTracker? = null
@@ -706,9 +723,10 @@ internal class BatchTranslationCoordinator(
                 translation.source,
             )
             // Chapter files may be gone (deleted mid-translation) or never
-            // existed for a streamed chapter; fail the chapter cleanly rather
-            // than NPE'ing.
-            if (chapterPath == null) {
+            // existed for a streamed chapter. A TRANSLATION run needs the
+            // downloaded bytes, so it fails cleanly; a COLORIZE-ONLY run can
+            // stream every page from the source instead.
+            if (chapterPath == null && !translation.colorizeOnly) {
                 logcat(LogPriority.ERROR) {
                     "TachiyomiAT chapter files not found for ${translation.chapter.name}"
                 }
@@ -729,7 +747,33 @@ internal class BatchTranslationCoordinator(
             // use cheap direct file opens.
             val streams: List<Pair<String, () -> InputStream>>
             val sharedArchive: mihon.core.archive.ArchiveReader?
-            if (chapterPath.isFile) {
+            var onlineColorizePlan: OnlineColorizePageStreamResolver.Plan? = null
+            if (chapterPath == null) {
+                // Streamed chapter under a colorize-only run: the page list
+                // comes from the source and images download lazily per page.
+                sharedArchive = null
+                onlineColorizePlan = colorizeStreams.resolve(
+                    translation.manga,
+                    translation.chapter,
+                    translation.source,
+                )
+                if (onlineColorizePlan == null) {
+                    logcat(LogPriority.ERROR) {
+                        "TachiyomiAT online page list unavailable for colorize-only run: ${translation.chapter.name}"
+                    }
+                    failBeforePipeline(
+                        translation,
+                        store,
+                        batchOrderedPageKeys,
+                        reason = "Couldn't fetch this chapter's pages from the source for colorize",
+                    )
+                    return null
+                }
+                val plan = onlineColorizePlan
+                streams = plan.orderedPageKeys.map { key ->
+                    key to { plan.streamFor(key) }
+                }
+            } else if (chapterPath.isFile) {
                 sharedArchive = chapterPath.archiveReader(context)
                 // Each closure reads from the shared reader; it's mmap'd so
                 // reads are seek-based, not re-decompressing.
@@ -830,6 +874,9 @@ internal class BatchTranslationCoordinator(
                                 ),
                                 onProgress = { tracker?.rebuildFromStore() },
                                 colorizeOnly = translation.colorizeOnly,
+                                prepareStream = onlineColorizePlan?.let { plan ->
+                                    { pageKey -> plan.prepareStream(pageKey) }
+                                },
                             )
                             if (result.error != null) {
                                 tracker?.abort(batchOrderedPageKeys.toSet(), result.error)

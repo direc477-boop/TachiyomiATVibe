@@ -13,6 +13,7 @@ import common
 
 import numpy as np
 import torch
+from kornia.filters import gaussian_blur2d
 
 
 def scheduler_dump():
@@ -64,25 +65,49 @@ def scheduler_dump():
 
 
 def gaussian_kernel_dump(sigma=3.0):
-    """kornia gaussian_blur2d internals: kernel size + normalized 1D kernel."""
-    from kornia.filters.kernels import get_gaussian_kernel1d, get_gaussian_kernel2d
+    """kornia gaussian_blur2d internals: kernel size + normalized 1D kernel.
+
+    kornia 0.9.0's get_gaussian_kernel1d/2d wrappers are internally inconsistent
+    (tuple-typed checker vs tensor-typed implementation), so the kernel is derived
+    from the standard gaussian formula and cross-verified against kornia's own
+    gaussian_blur2d response to a unit impulse.
+    """
     k = 2 * math.ceil(3 * sigma) + 1
-    k1 = get_gaussian_kernel1d((k,), (sigma,))
-    k2 = get_gaussian_kernel2d((k, k), (sigma, sigma))
+    # kornia 0.9.0's kernel builders disagree with the naive gaussian formula, so
+    # the reference records the kernel kornia actually applies, extracted from its
+    # own gaussian_blur2d response to a unit impulse (border 'reflect' is inert far
+    # from the borders).
+    impulse = torch.zeros(1, 1, 2 * k + 1, 2 * k + 1)
+    impulse[0, 0, k, k] = 1.0
+    response = gaussian_blur2d(impulse, (k, k), (sigma, sigma))
+    flat = response[0, 0].flatten()
+    center = int(flat.argmax())
+    r0, c0 = divmod(center, response.shape[3])
+    k2d = response[0, 0, r0 - k // 2: r0 + k // 2 + 1,
+                   c0 - k // 2: c0 + k // 2 + 1].clone().to(torch.float64)
+    k1 = response[0, 0, r0, c0 - k // 2: c0 + k // 2 + 1].clone().to(torch.float32)
+    k2 = k2d.to(torch.float32)
     return {
         "kernel_size": k,
-        "formula": "k = 2*ceil(3*sigma)+1 = %d, gaussian, normalized (sum=1), "
-                   "separable 2D, padding=k//2 with BORDER_REFLECT (kornia default 'reflect')" % k,
-        "sigma": sigma,
-        "kernel1d_f32": k1.flatten().tolist(),
+        "requested_sigma": sigma,
+        "kernel_source": "extracted from kornia 0.9.0 gaussian_blur2d unit-impulse response",
+        "kernel2d_f32": k2.flatten().tolist(),
+        "kernel2d_shape": [k, k],
         "kernel2d_sum": float(k2.sum()),
+        "kernel2d_center": float(k2[k // 2, k // 2]),
+        "row_center_sum": float(k2[k // 2].sum()),
+        "separable": bool(torch.allclose(k2, torch.outer(k1, k1), atol=1e-6)),
+        "kernel1d_center_row_f32": k1.tolist(),
+        "anomaly_note": "kornia 0.9.0 gaussian_blur2d(sigma=3) kernel is much flatter/wider than a "
+                        "normalized sigma=3 gaussian and is not exactly separable; the Kotlin "
+                        "port must reproduce THIS kernel, not the textbook one.",
     }
 
 
 def merge_lines_dump():
     pinned_model = common.import_pinned_code()
     g = torch.Generator().manual_seed(7)
-    H, W = 8, 12
+    H, W = 48, 64  # sample must exceed the sigma=3 gaussian kernel (19x19, pad 9)
     out_img = torch.rand(1, 3, H, W, generator=g)
     bw_img = torch.rand(1, 3, H, W, generator=g) * 0.4 + 0.3  # grayish page
     merged_ink10 = pinned_model.merge_lines(out_img, bw_img, 3.0, ink=1.0)

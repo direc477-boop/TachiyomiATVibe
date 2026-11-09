@@ -41,6 +41,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "TachiyomiAT"
 include(":app")
+include(":mcv2-gpu-probe")
 include(":core-metadata")
 include(":core:archive")
 include(":core:common")

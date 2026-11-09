@@ -14,9 +14,10 @@ spotless = "7.0.0.BETA4"
 ktlint-core = "1.5.0"
 firebase-bom = "33.7.0"
 onnxruntime-android-version = "1.28.0"
+onnxruntime-baseline-version = "1.31.1"
 jtokkit_version = "1.1.0"
 opencv = "4.9.0"
-litert-version = "2.3.0"
+litert-version = "2.3.2"
 
 [libraries]
 desugar = "com.android.tools:desugar_jdk_libs:2.1.4"
@@ -42,10 +43,12 @@ mlkit-text-recognition-japanese = { module = "com.google.mlkit:text-recognition-
 mlkit-text-recognition-korean = { module = "com.google.mlkit:text-recognition-korean", version.ref = "mlkit-text-recognition-version" }
 mlkit-text-translate = { module = "com.google.mlkit:translate", version.ref = "mlkit-text-translate-version" }
 onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android-qnn", version.ref = "onnxruntime-android-version" }
+onnxruntime-android-baseline = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime-baseline-version" }
 jtokkit = { module = "com.knuddels:jtokkit", version.ref = "jtokkit_version" }
 opencv = { module = "org.opencv:opencv", version.ref = "opencv" }
 litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert-version" }
 litert-gpu = { module = "com.google.ai.edge.litert:litert-gpu", version.ref = "litert-version" }
+litert-npu-qualcomm = { module = "com.google.ai.edge.litert:litert-npu-runtime-qualcomm", version.ref = "litert-version" }
 
 disklrucache = "com.jakewharton:disklrucache:2.0.2"
 unifile = "com.github.tachiyomiorg:unifile:e0def6b3dc"

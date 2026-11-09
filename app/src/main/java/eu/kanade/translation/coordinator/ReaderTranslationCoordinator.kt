@@ -5,11 +5,11 @@ import eu.kanade.translation.engines.translator.TranslatorComputeClass
 import eu.kanade.translation.model.PageRejectionKind
 import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.model.PageTranslation
+import eu.kanade.translation.model.PageTranslationView
 import eu.kanade.translation.model.SinglePageOutcome
 import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.detachedCopy
-import eu.kanade.translation.model.isColorizeOnlyComplete
 import eu.kanade.translation.model.isTextlessTerminal
 import eu.kanade.translation.persistence.ActiveChapterStoreRegistry
 import eu.kanade.translation.persistence.ChapterTranslationStore
@@ -57,6 +57,23 @@ import java.util.concurrent.atomic.AtomicLong
  * 4. Yields when batch translation owns the chapter lock.
  * 5. Direct commit of completed pages to [ChapterTranslationStore].
  */
+/**
+ * True when submitted page work may be skipped as already-final. A
+ * colorize-only page is NEVER final for reader dispatch — manual or
+ * automatic: its OCR/translation statuses are placeholders, and a translate
+ * request (explicit tap or auto-translation demand) must rework it, running
+ * detection/render. Only genuinely translated or textless-terminal states
+ * finalize page work.
+ */
+internal fun isReaderPageWorkFinal(
+    state: PageTranslationView?,
+    force: Boolean,
+): Boolean = !force &&
+    (
+        state?.translationStatus == StageStatus.READY ||
+            state?.isTextlessTerminal == true
+        )
+
 internal class ReaderTranslationCoordinator(
     private val processor: TranslationProcessor,
     private val isBatchActiveForChapter: (String) -> Boolean = { false },
@@ -191,13 +208,7 @@ internal class ReaderTranslationCoordinator(
 
                     // Check if already completed in store
                     val currentState = nextRequest.session.store.state.value[nextRequest.pageKey]
-                    if (!nextRequest.force &&
-                        (
-                            currentState?.translationStatus == StageStatus.READY ||
-                                currentState?.isTextlessTerminal == true ||
-                                currentState?.isColorizeOnlyComplete == true
-                            )
-                    ) {
+                    if (isReaderPageWorkFinal(currentState, nextRequest.force)) {
                         logcat(LogPriority.DEBUG) {
                             "ReaderTranslationCoordinator: page $fullKey already complete, skipping"
                         }
@@ -427,6 +438,28 @@ internal class ReaderTranslationCoordinator(
             if (!admissionGuard(chapterId)) return@forEach
             val state = viewportStates[chapterId.toString()] ?: return@forEach
             reconcile(binding.token, state.resolve)
+        }
+    }
+
+    /**
+     * Transient COLORING stage signal for reader-direct colorize runs, which
+     * never enter the queue pipeline's own stage reporting ([processRequest]).
+     * The attempt token fences the clear against a newer attempt.
+     */
+    suspend fun <T> withColorizeStageSignal(
+        chapterId: Long,
+        pageKey: String,
+        block: suspend () -> T,
+    ): T {
+        val fullStageKey = "$chapterId:$pageKey"
+        val stageAttempt = stageBoard.nextAttemptToken()
+        stageBoard.publish(fullStageKey, TranslationStageSignal.COLORING, stageAttempt)
+        try {
+            return block()
+        } finally {
+            withContext(NonCancellable) {
+                stageBoard.clear(fullStageKey, stageAttempt)
+            }
         }
     }
 

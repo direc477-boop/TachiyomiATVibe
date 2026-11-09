@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.translation.PageColorizeOutcome
 import eu.kanade.translation.TranslationManager
 import eu.kanade.translation.coordinator.ReaderSessionToken
 import eu.kanade.translation.diagnostics.AutoSmoothnessTelemetry
@@ -20,15 +21,18 @@ import eu.kanade.translation.engines.inpainting.litert.LiteRTMangaInpaintingEngi
 import eu.kanade.translation.engines.translator.TranslatorComputeClass
 import eu.kanade.translation.engines.translator.providers.AiModelFetcher
 import eu.kanade.translation.engines.vision.ocr.OcrModelCatalog
+import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.TextRecognizerLanguage
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.displayImageName
 import eu.kanade.translation.model.isTranslationDisplayReady
 import eu.kanade.translation.model.shouldShowTranslationOverlay
 import eu.kanade.translation.persistence.ChapterTranslationStore
+import eu.kanade.translation.persistence.PageWriteOrigin
 import eu.kanade.translation.processing.MemoryPressureClass
 import eu.kanade.translation.processing.MemoryPressurePolicy
 import eu.kanade.translation.processing.execution.TranslationStreamRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.translation.AiEngine
@@ -90,6 +95,7 @@ internal class ReaderTranslationController(
             owner.currentTranslationStore = value
         }
     private val pageArrivalTimes get() = owner.pageArrivalTimes
+    private val autoColorizeInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     // Presence can't change mid-process, so the auto path toasts once.
     private var autoInpaintMissingToasted = false
@@ -232,11 +238,13 @@ internal class ReaderTranslationController(
      * Re-binds the display stream after a colorization-gate toggle without the
      * warm-window gate: the page already has durable artifacts, and a gated
      * re-attach would drop the stream for cold chapters. Never nulls; the
-     * caller's refresh re-evaluates which projected image decodes.
+     * caller's refresh re-evaluates which projected image decodes. Uses the
+     * page's own chapter — a holder for an adjacent chapter rebinds too, and
+     * the active chapter's file names would resolve the wrong directory.
      */
     internal suspend fun rebindTranslatedStreamForPref(page: ReaderPage) {
         val manga = manga ?: return
-        val chapter = getCurrentChapter() ?: return
+        val chapter = page.chapter
         val source = sourceManager.get(manga.source) as? HttpSource ?: return
         bindTranslatedStream(page, manga, chapter, source, resolvePageKey(page))
     }
@@ -358,7 +366,7 @@ internal class ReaderTranslationController(
         }
         viewModelScope.launchIO {
             val token = ensureQueueSession(currentPage.chapter) ?: return@launchIO
-            val latestPage = (state.value.currentPage as? ReaderPage)
+            val latestPage = owner.currentPageReaderPage()
                 ?.takeIf { it.chapter === currentPage.chapter }
                 ?: return@launchIO
             dispatchViewport(token, latestPage)
@@ -550,7 +558,7 @@ internal class ReaderTranslationController(
             ) {
                 val chapter = getCurrentChapter() ?: return@launchIO
                 val token = ensureQueueSession(chapter) ?: return@launchIO
-                val currentPage = state.value.currentPage as? ReaderPage ?: return@launchIO
+                val currentPage = owner.currentPageReaderPage() ?: return@launchIO
                 if (currentPage.chapter === chapter) dispatchViewport(token, currentPage)
             }
         }
@@ -559,6 +567,7 @@ internal class ReaderTranslationController(
     internal fun resetAutoTranslationState() {
         // Invalidate loader callbacks and resolver-held page/stream handles before any caller
         // cancels a queue session or unreferences the chapter's loader resources.
+        autoColorizeInFlight.clear()
         clearReaderSourceReadiness()
         autoPageResolver.invalidate()
     }
@@ -572,6 +581,10 @@ internal class ReaderTranslationController(
     internal fun resetOcrData() = actions.resetOcrData()
     internal fun translateSinglePage(page: ReaderPage, force: Boolean? = null) = actions.translateSinglePage(page, force)
     internal fun confirmPageRetranslation(page: ReaderPage) = actions.confirmPageRetranslation(page)
+
+    internal fun colorizeCurrentChapter() = actions.colorizeCurrentChapter()
+
+    internal fun colorizeCurrentPage() = actions.colorizeCurrentPage()
     internal fun confirmBatchReaderSwitch(request: ReaderViewModel.Dialog.BatchReaderSwitch) = actions.confirmBatchReaderSwitch(request)
     internal fun cancelSinglePageTranslation(page: ReaderPage) = actions.cancelSinglePageTranslation(page)
     internal fun stopAllTranslation() = actions.stopAllTranslation()
@@ -582,6 +595,127 @@ internal class ReaderTranslationController(
 
     internal fun setAutoTranslate(auto: Boolean) {
         translationPreferences.autoTranslate().set(auto)
+    }
+
+    internal fun handleAutoColorize(currentPage: ReaderPage) {
+        if (!translationPreferences.translationColorizationEnabled().get() ||
+            !translationPreferences.autoColorize().get()
+        ) {
+            return
+        }
+        val pages = currentPage.chapter.pages ?: return
+        val currentIndex = pages.indexOfFirst { it === currentPage }
+        if (currentIndex < 0) return
+
+        val targets = listOfNotNull(
+            pages.getOrNull(currentIndex),
+            pages.getOrNull(currentIndex + 1),
+        ).filterIsInstance<ReaderPage>()
+
+        val manga = manga ?: return
+        val source = sourceManager.get(manga.source) as? HttpSource ?: return
+
+        for (targetPage in targets) {
+            val pageKey = resolvePageKey(targetPage)
+            if (!autoColorizeInFlight.add(pageKey)) {
+                continue
+            }
+
+            viewModelScope.launchIO {
+                try {
+                    val store = currentTranslationStore
+                    if (store != null) {
+                        val translation = targetPage.translation
+                        if (translation == null || translation.blocks.isEmpty()) {
+                            val hydrated = store.getOrLoadPageSnapshot(pageKey)
+                            if (hydrated != null) {
+                                targetPage.translation = hydrated
+                            }
+                        }
+                    }
+
+                    if (targetPage.translation?.coloredImageName != null &&
+                        targetPage.translation?.coloringStatus == StageStatus.READY
+                    ) {
+                        // Reuse valid saved colors without text detection or color re-execution
+                        rebindTranslatedStreamForPref(targetPage)
+                        targetPage.showTranslatedImage = true
+                        eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(setOf(targetPage)))
+                        mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
+                        return@launchIO
+                    }
+
+                    val streamFn = actions.resolveColorizePageStreamFn(targetPage, source)
+                    if (streamFn == null) {
+                        logcat(LogPriority.WARN) { "Auto-colorize stream resolution failed for $pageKey" }
+                        reportAutoColorizeFailure(targetPage, currentPage, PageColorizeOutcome.DECODE_FAILED)
+                        return@launchIO
+                    }
+                    val domainChapter = targetPage.chapter.chapter.toDomainChapter() ?: return@launchIO
+                    // AUTO origin: denied while a pipeline stage owns the page,
+                    // never preempting it — the pipeline colorizes its own pages
+                    // as a post-inpaint stage when it finishes.
+                    val outcome = translationManager.colorizeCurrentPage(
+                        manga = manga,
+                        chapter = domainChapter,
+                        source = source,
+                        pageKey = pageKey,
+                        streamFn = streamFn,
+                        origin = PageWriteOrigin.AUTO,
+                    )
+                    if (outcome == PageColorizeOutcome.COMPLETED) {
+                        rebindTranslatedStreamForPref(targetPage)
+                        targetPage.showTranslatedImage = true
+                        eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(setOf(targetPage)))
+                        mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
+                    } else {
+                        logcat(LogPriority.WARN) {
+                            "Auto-colorize did not complete for $pageKey: $outcome"
+                        }
+                        reportAutoColorizeFailure(targetPage, currentPage, outcome)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Throwable) {
+                    logcat(LogPriority.WARN, e) { "Auto-colorize error on page $pageKey" }
+                } finally {
+                    autoColorizeInFlight.remove(pageKey)
+                }
+            }
+        }
+    }
+
+    /**
+     * Surfaces an auto-colorize failure for the page the user is looking at —
+     * every non-COMPLETED outcome was silently dropped before. Pages ahead of
+     * the viewport only log: toast storms while flipping pages are worse.
+     */
+    private suspend fun reportAutoColorizeFailure(
+        targetPage: ReaderPage,
+        currentPage: ReaderPage,
+        outcome: PageColorizeOutcome,
+    ) {
+        if (targetPage !== currentPage) return
+        withUIContext {
+            val app = Injekt.get<Application>()
+            when (outcome) {
+                PageColorizeOutcome.UNAVAILABLE -> app.toast(ATMR.strings.manga_colorize_unavailable)
+                PageColorizeOutcome.PAGE_BUSY -> app.toast(ATMR.strings.reader_colorize_page_busy)
+                else -> app.toast(ATMR.strings.reader_colorize_page_failed)
+            }
+        }
+    }
+
+    internal fun colorizeCurrentPageForAuto() {
+        val page = owner.currentPageReaderPage() ?: return
+        handleAutoColorize(page)
+    }
+
+    internal fun setAutoColorize(auto: Boolean) {
+        translationPreferences.autoColorize().set(auto)
+        if (auto && translationPreferences.translationColorizationEnabled().get()) {
+            colorizeCurrentPageForAuto()
+        }
     }
 
     /** TachiyomiAT: idle translate button ghost vs. show-only-with-controls. */
@@ -623,6 +757,10 @@ internal class ReaderTranslationController(
 
     internal fun setTranslationColorizationModel(model: ColorizationModel) {
         translationPreferences.translationColorizationModel().set(model)
+    }
+
+    internal fun setTranslationUpscalingEnabled(enabled: Boolean) {
+        translationPreferences.translationUpscalingEnabled().set(enabled)
     }
 
     internal fun setTranslationEngineCategory(category: TranslationEngineCategory) {
@@ -742,12 +880,6 @@ internal class ReaderTranslationController(
             liveTranslationState = Translation.State.NOT_TRANSLATED
             recomputeTranslationState()
         }
-    }
-
-    internal fun isCurrentChapterDownloaded(): Boolean {
-        val manga = manga ?: return false
-        val chapter = getCurrentChapter()?.chapter ?: return false
-        return downloadManager.isChapterDownloaded(chapter.name, chapter.scanlator, manga.title, manga.source)
     }
 
     internal fun observeTranslationState() = observation.observeTranslationState()

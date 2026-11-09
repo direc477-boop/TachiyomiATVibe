@@ -157,7 +157,11 @@ class ReaderViewModel @JvmOverloads constructor(
                     translationPreferences.translationInpaintingMode().changes(),
                     translationPreferences.translationInpaintingNeuralModel().changes(),
                     translationPreferences.translationColorizationEnabled().changes(),
-                    translationPreferences.translationColorizationModel().changes(),
+                    combine(
+                        translationPreferences.translationColorizationModel().changes(),
+                        translationPreferences.autoColorize().changes(),
+                        translationPreferences.translationUpscalingEnabled().changes(),
+                    ) { model, autoColorize, upscaling -> Triple(model, autoColorize, upscaling) },
                 ) { inpaintingMode, neuralModel, colorization, colorModel ->
                     Quad(inpaintingMode, neuralModel, colorization, colorModel)
                 },
@@ -221,7 +225,9 @@ class ReaderViewModel @JvmOverloads constructor(
             inpaintingMode = q2.d.a,
             inpaintingNeuralModel = q2.d.b,
             colorizationEnabled = q2.d.c,
-            colorizationModel = q2.d.d,
+            colorizationModel = q2.d.d.first,
+            autoColorize = q2.d.d.second,
+            upscalingEnabled = q2.d.d.third,
             engineCategory = q3.a,
             standardEngine = q3.b,
             deeplApiKey = q3.c,
@@ -504,6 +510,7 @@ class ReaderViewModel @JvmOverloads constructor(
         // via the Translation settings sheet each session. It then stays on while
         // navigating within this reader session.
         translationPreferences.autoTranslate().set(false)
+        translationPreferences.autoColorize().set(false)
 
         // S3 (Milestone M2): Warm up recognition engines when translation is enabled.
         if (translationPreferences.translationEnabled().get()) {
@@ -538,6 +545,14 @@ class ReaderViewModel @JvmOverloads constructor(
             .onEach { enabled ->
                 translationController.onReaderAutoToggled(enabled)
             }
+            .launchIn(viewModelScope)
+
+        combine(
+            translationPreferences.translationColorizationEnabled().changes(),
+            translationPreferences.autoColorize().changes(),
+        ) { colorEnabled, autoColor -> colorEnabled && autoColor }
+            .distinctUntilChanged()
+            .onEach { if (it) translationController.colorizeCurrentPageForAuto() }
             .launchIn(viewModelScope)
 
         // Compute-epoch rebind trigger: when the active translator family
@@ -648,7 +663,7 @@ class ReaderViewModel @JvmOverloads constructor(
     )
 
     /** Resolves the [ReaderPage] currently displayed, or null. */
-    private fun currentPageReaderPage(s: State = state.value): ReaderPage? {
+    internal fun currentPageReaderPage(s: State = state.value): ReaderPage? {
         val pages = getCurrentChapter()?.pages ?: return null
         // state.currentPage is 1-based for display ("N/M"); chapter.pages is 0-based.
         val idx = s.currentPage - 1
@@ -918,6 +933,9 @@ class ReaderViewModel @JvmOverloads constructor(
     fun setAutoTranslate(auto: Boolean) =
         translationController.setAutoTranslate(auto)
 
+    fun setAutoColorize(auto: Boolean) =
+        translationController.setAutoColorize(auto)
+
     /** TachiyomiAT: translate button presentation (adaptive ghost vs. with-controls). */
     fun setTranslateButtonWithControls(withControls: Boolean) =
         translationController.setTranslateButtonWithControls(withControls)
@@ -948,6 +966,13 @@ class ReaderViewModel @JvmOverloads constructor(
 
     fun setTranslationColorizationModel(model: ColorizationModel) =
         translationController.setTranslationColorizationModel(model)
+
+    fun setTranslationUpscalingEnabled(enabled: Boolean) =
+        translationController.setTranslationUpscalingEnabled(enabled)
+
+    fun colorizeCurrentChapter() = translationController.colorizeCurrentChapter()
+
+    fun colorizeCurrentPage() = translationController.colorizeCurrentPage()
 
     fun setTranslationInpaintingMode(mode: String) =
         translationController.setTranslationInpaintingMode(mode)
@@ -988,8 +1013,6 @@ class ReaderViewModel @JvmOverloads constructor(
     fun onMemoryPressure(level: Int) =
         translationController.onMemoryPressure(level)
 
-    fun isCurrentChapterDownloaded(): Boolean =
-        translationController.isCurrentChapterDownloaded()
     private fun observeTranslationState() =
         translationController.observeTranslationState()
 

@@ -101,6 +101,17 @@ data class TranslationProgressSnapshot(
     /** Total outstanding queue entries when [queuePosition] is set. */
     val queueTotal: Int? = null,
     /**
+     * The projected run is a colorize-only pass: progress/completion wording
+     * must say "coloring", never "translated".
+     */
+    val colorizeOnly: Boolean = false,
+    /**
+     * The queue paused this chapter because the require-charging preference is
+     * on and the device is unplugged; carries the true pause reason to every
+     * surface instead of a generic provider-unavailable fallback.
+     */
+    val pausedForCharging: Boolean = false,
+    /**
      * A guarded artifact publication was rejected
      * (`BatchPass1Status.PERSISTENCE_REJECTED` / `ReconciliationResult
      * .nonDurableFailure`). The affected page produced in-memory work but NO

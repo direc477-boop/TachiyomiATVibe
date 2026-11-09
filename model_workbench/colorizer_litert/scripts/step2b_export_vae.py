@@ -66,13 +66,13 @@ def run_one(which, vae, status):
     if which == "enc":
         module = common.VaeEnc(vae).eval()
         args = enc_args()
-        out_name = "vae_enc_fp16.tflite"
-        int8_name = "vae_enc_int8.tflite"
+        out_name = os.path.join(common.EXPORTED, "vae_enc_fp16.tflite")
+        int8_name = os.path.join(common.EXPORTED, "vae_enc_int8.tflite")
     else:
         module = common.VaeDec(vae).eval()
         args = dec_args()
-        out_name = "vae_dec_fp16.tflite"
-        int8_name = "vae_dec_int8.tflite"
+        out_name = os.path.join(common.EXPORTED, "vae_dec_fp16.tflite")
+        int8_name = os.path.join(common.EXPORTED, "vae_dec_int8.tflite")
 
     with torch.no_grad():
         torch_out = module(**args).numpy().copy()

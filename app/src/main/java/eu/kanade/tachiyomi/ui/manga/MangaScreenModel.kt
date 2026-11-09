@@ -463,7 +463,6 @@ class MangaScreenModel(
             onTranslationCancelled = ::showTranslationCancelledNotice,
             onTranslationResumePaused = ::showTranslationResumePausedNotice,
             onColorizeUnavailable = ::showColorizeUnavailableNotice,
-            onColorizeNeedsDownload = ::showColorizeNeedsDownloadNotice,
             inpaintStartBlocked = {
                 LiteRTMangaInpaintingEngine.isNeuralStartBlocked(translationPreferences, context)
             },
@@ -474,15 +473,6 @@ class MangaScreenModel(
         screenModelScope.launch {
             snackbarHostState.showSnackbar(
                 message = context.stringResource(ATMR.strings.manga_colorize_unavailable),
-                duration = SnackbarDuration.Short,
-            )
-        }
-    }
-
-    private fun showColorizeNeedsDownloadNotice() {
-        screenModelScope.launch {
-            snackbarHostState.showSnackbar(
-                message = context.stringResource(ATMR.strings.manga_colorize_download_first),
                 duration = SnackbarDuration.Short,
             )
         }

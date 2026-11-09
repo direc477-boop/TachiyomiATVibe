@@ -41,7 +41,6 @@ internal class MangaTranslationCoordinator(
     private val onTranslationCancelled: (onUndo: () -> Unit) -> Unit = {},
     private val onTranslationResumePaused: () -> Unit = {},
     private val onColorizeUnavailable: () -> Unit = {},
-    private val onColorizeNeedsDownload: () -> Unit = {},
     private val inpaintStartBlocked: () -> Boolean = { false },
 ) {
     internal var pendingTranslationGroup: List<ChapterList.Item> = emptyList()
@@ -300,7 +299,7 @@ internal class MangaTranslationCoordinator(
     /**
      * Colorize-only start: no OCR/translation/inpaint runs, so the inpaint
      * model preflight and the translate confirm dialog do not apply. The
-     * colorization gate and downloaded files are the only requirements.
+     * colorization gate is the only requirement.
      */
     fun confirmChapterColorization(items: List<ChapterList.Item>) {
         val manga = getSuccessState()?.manga ?: return
@@ -308,24 +307,12 @@ internal class MangaTranslationCoordinator(
             onColorizeUnavailable()
             return
         }
+        if (items.isEmpty()) return
         scope.launch {
-            val downloaded = items.filter { candidate ->
-                downloadManager.isChapterDownloaded(
-                    candidate.chapter.name,
-                    candidate.chapter.scanlator,
-                    manga.title,
-                    manga.source,
-                    skipCache = true,
-                )
-            }
-            if (downloaded.isEmpty()) {
-                onColorizeNeedsDownload()
-                return@launch
-            }
-            val admitted = downloaded.count { candidate ->
+            val admitted = items.count { candidate ->
                 translationManager.colorizeChapter(manga, candidate.chapter)
             }
-            if (admitted > 0) openTranslationProgressDrawer(downloaded.first())
+            if (admitted > 0) openTranslationProgressDrawer(items.first())
         }
     }
 

@@ -17,6 +17,7 @@ import tachiyomi.domain.translation.TranslationEngineCategory
 data class TranslationSettingsState(
     val enabled: Boolean = false,
     val autoTranslate: Boolean = false,
+    val autoColorize: Boolean = false,
     val translateFromLanguage: String = "",
     val translateButtonWithControls: Boolean = false,
     val floaterEnabled: Boolean = true,
@@ -31,6 +32,7 @@ data class TranslationSettingsState(
     val inpaintingNeuralModel: NeuralInpaintModel = NeuralInpaintModel.DEFAULT,
     val colorizationEnabled: Boolean = false,
     val colorizationModel: ColorizationModel = ColorizationModel.DEFAULT,
+    val upscalingEnabled: Boolean = false,
     val engineCategory: TranslationEngineCategory = TranslationEngineCategory.STANDARD,
     val standardEngine: StandardEngine = StandardEngine.GOOGLE,
     val deeplApiKey: String = "",

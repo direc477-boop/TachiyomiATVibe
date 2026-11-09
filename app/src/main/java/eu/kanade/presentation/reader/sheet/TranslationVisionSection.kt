@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -46,7 +47,11 @@ internal fun TranslationVisionSection(
     onTranslationInpaintingModeChange: (String) -> Unit,
     onTranslationInpaintingNeuralModelChange: (NeuralInpaintModel) -> Unit,
     onColorizationEnabledChange: (Boolean) -> Unit,
+    onAutoColorizeChange: (Boolean) -> Unit,
     onColorizationModelChange: (ColorizationModel) -> Unit,
+    onUpscalingEnabledChange: (Boolean) -> Unit,
+    onColorizeChapterClick: () -> Unit,
+    onColorizePageClick: () -> Unit,
 ) {
     SectionHeading(title = stringResource(ATMR.strings.reader_translation_section_vision))
 
@@ -145,13 +150,55 @@ internal fun TranslationVisionSection(
             exit = shrinkVertically() + fadeOut(),
         ) {
             val colorizationOptions = colorizationModelOptions()
-            SearchableConfigSelectorBox(
-                selectedLabel = colorizationOptions.firstOrNull { it.value == state.colorizationModel }?.label
-                    ?: state.colorizationModel.name,
-                options = colorizationOptions,
-                onSelect = onColorizationModelChange,
-                placeholder = stringResource(ATMR.strings.pref_colorization_model),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SwitchCard(
+                    icon = Icons.Outlined.Palette,
+                    title = stringResource(ATMR.strings.pref_auto_colorize),
+                    subtitle = stringResource(ATMR.strings.pref_auto_colorize_summary),
+                    checked = state.autoColorize,
+                    onCheckedChange = onAutoColorizeChange,
+                )
+                SearchableConfigSelectorBox(
+                    selectedLabel = colorizationOptions.firstOrNull { it.value == state.colorizationModel }?.label
+                        ?: state.colorizationModel.name,
+                    options = colorizationOptions,
+                    onSelect = onColorizationModelChange,
+                    placeholder = stringResource(ATMR.strings.pref_colorization_model),
+                )
+            }
         }
+
+        // Page-scope and chapter-scope actions, always visible so the entry
+        // points and their preconditions stay discoverable even with
+        // colorization switched off.
+        TranslationActionRow(
+            icon = Icons.Outlined.Palette,
+            title = stringResource(ATMR.strings.reader_colorize_page),
+            subtitle = stringResource(ATMR.strings.reader_colorize_page_summary),
+            onClick = onColorizePageClick,
+        )
+        TranslationActionRow(
+            icon = Icons.Outlined.Palette,
+            title = stringResource(ATMR.strings.reader_colorize_chapter),
+            subtitle = stringResource(ATMR.strings.reader_colorize_summary),
+            onClick = onColorizeChapterClick,
+        )
+    }
+
+    SectionHeading(title = stringResource(ATMR.strings.pref_upscaling_title))
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SwitchCard(
+            icon = Icons.Outlined.AutoAwesome,
+            title = stringResource(ATMR.strings.pref_upscaling_enabled),
+            subtitle = stringResource(ATMR.strings.pref_upscaling_enabled_summary),
+            checked = state.upscalingEnabled,
+            onCheckedChange = onUpscalingEnabledChange,
+        )
     }
 }

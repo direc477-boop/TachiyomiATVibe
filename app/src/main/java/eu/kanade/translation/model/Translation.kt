@@ -28,6 +28,13 @@ data class Translation(
      */
     var colorizeOnly: Boolean = false
 
+    /**
+     * The queue paused this run because the require-charging preference is on
+     * and the device is unplugged. Surfaces the true pause reason instead of
+     * a generic provider-unavailable fallback.
+     */
+    var pausedForCharging: Boolean = false
+
     @Transient
     private val _statusFlow = MutableStateFlow(State.NOT_TRANSLATED)
 

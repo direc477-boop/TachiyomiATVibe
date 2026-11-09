@@ -11,4 +11,9 @@ internal object TranslationProcessingTimeouts {
      * pass can exceed the whole translate+inpaint budget on CPU demotion.
      */
     const val COLORING_PHASE_TIMEOUT_MS = 240_000L
+
+    /**
+     * Single-page budget extension for optional super-resolution upscaling (QuickSRNetLarge).
+     */
+    const val UPSCALING_PHASE_TIMEOUT_MS = 60_000L
 }

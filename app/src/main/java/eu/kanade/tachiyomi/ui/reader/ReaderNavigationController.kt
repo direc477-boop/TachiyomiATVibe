@@ -263,6 +263,17 @@ internal class ReaderNavigationController(private val owner: ReaderViewModel) {
                     handleAutoTranslation(landingPage)
                 }
             }
+            if (translationPreferences.translationColorizationEnabled().get() &&
+                translationPreferences.autoColorize().get()
+            ) {
+                val pages = chapter.pages
+                val landingIndex = chapter.requestedPage.coerceAtLeast(0)
+                    .coerceAtMost((pages?.lastIndex ?: 0))
+                val landingPage = pages?.getOrNull(landingIndex) as? ReaderPage
+                if (landingPage != null) {
+                    handleAutoColorize(landingPage)
+                }
+            }
         }
 
         val durationMs = (System.nanoTime() - startNanos) / 1_000_000.0
@@ -448,12 +459,30 @@ internal class ReaderNavigationController(private val owner: ReaderViewModel) {
                 }
             }
         }
+        if (translationPreferences.translationColorizationEnabled().get() &&
+            translationPreferences.autoColorize().get()
+        ) {
+            val active = state.value.viewerChapters
+            val stillActive = active != null &&
+                selectedChapter === active.currChapter
+            if (stillActive) {
+                handleAutoColorize(page)
+            } else {
+                logcat {
+                    "Dropping auto-colorize for page ${page.index}: chapter ${selectedChapter.chapter.url} " +
+                        "no longer active (stale cross-chapter event)"
+                }
+            }
+        }
 
         eventChannel.trySend(ReaderViewModel.Event.PageChanged)
     }
 
     private fun handleAutoTranslation(currentPage: ReaderPage) =
         translationController.handleAutoTranslation(currentPage)
+
+    private fun handleAutoColorize(currentPage: ReaderPage) =
+        translationController.handleAutoColorize(currentPage)
 
     private fun resetAutoTranslationState() =
         translationController.resetAutoTranslationState()

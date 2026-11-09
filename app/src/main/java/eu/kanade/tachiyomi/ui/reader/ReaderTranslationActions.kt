@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.translation.PageColorizeOutcome
 import eu.kanade.translation.coordinator.ReaderPageWork
 import eu.kanade.translation.coordinator.ReaderSessionIntent
 import eu.kanade.translation.coordinator.ReaderSessionToken
@@ -56,6 +57,7 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
 
     private fun recomputeTranslationState() = owner.recomputeTranslationState()
     private fun getCurrentChapter() = owner.getCurrentChapter()
+    private fun currentReaderPage(): ReaderPage? = owner.currentPageReaderPage()
 
     /** BALANCE/QUALITY starts are impossible while the selected model's assets are absent; FAST never blocks. */
     private fun inpaintModelMissing(): Boolean =
@@ -162,7 +164,7 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
 
     internal fun resetTranslationData() {
         val manga = manga ?: return
-        val page = state.value.currentPage as? ReaderPage ?: return
+        val page = currentReaderPage() ?: return
         val chapter = page.chapter.chapter
         val source = sourceManager.get(manga.source) as? HttpSource ?: return
 
@@ -184,7 +186,7 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
 
     internal fun resetOcrData() {
         val manga = manga ?: return
-        val page = state.value.currentPage as? ReaderPage ?: return
+        val page = currentReaderPage() ?: return
         val chapter = page.chapter.chapter
         val source = sourceManager.get(manga.source) as? HttpSource ?: return
 
@@ -566,4 +568,137 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
             }
         }
     }
+
+    internal suspend fun resolveColorizePageStreamFn(
+        page: ReaderPage,
+        source: HttpSource,
+    ): (() -> InputStream)? {
+        page.originalStream?.let { return it }
+
+        var imageUrl = page.imageUrl
+        if (imageUrl.isNullOrEmpty()) {
+            val sPage = Page(page.index, page.url, "")
+            try {
+                imageUrl = source.getImageUrl(sPage)
+                page.imageUrl = imageUrl
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (e: Throwable) {
+                logcat(LogPriority.WARN, e) { "Failed to resolve image URL for colorize: ${page.url}" }
+            }
+        }
+
+        if (!imageUrl.isNullOrEmpty()) {
+            try {
+                return createLazyHttpStream(source, page, imageUrl)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (e: Throwable) {
+                logcat(LogPriority.WARN, e) { "Failed to download image for colorize: $imageUrl" }
+            }
+        }
+
+        val manga = manga ?: return null
+        val domainChapter = page.chapter.chapter.toDomainChapter() ?: return null
+        val pageKey = resolvePageKey(page)
+        return translationManager.downloadedChapterPageStream(
+            manga,
+            domainChapter,
+            source,
+            pageKey,
+        )
+    }
+
+    internal fun colorizeCurrentPage() {
+        if (!translationPreferences.translationColorizationEnabled().get()) {
+            Injekt.get<Application>().toast(ATMR.strings.manga_colorize_unavailable)
+            return
+        }
+        val page = currentReaderPage() ?: return
+        val manga = manga ?: return
+        val chapter = page.chapter.chapter.toDomainChapter() ?: return
+        val source = sourceManager.get(manga.source) as? HttpSource ?: return
+        val pageKey = resolvePageKey(page)
+
+        viewModelScope.launchIO {
+            withUIContext {
+                Injekt.get<Application>().toast(ATMR.strings.reader_colorize_page_started)
+            }
+            val streamFn = resolveColorizePageStreamFn(page, source)
+            if (streamFn == null) {
+                withUIContext {
+                    Injekt.get<Application>().toast(ATMR.strings.reader_colorize_page_failed)
+                }
+                return@launchIO
+            }
+            val outcome = translationManager.colorizeCurrentPage(
+                manga = manga,
+                chapter = chapter,
+                source = source,
+                pageKey = pageKey,
+                streamFn = streamFn,
+            )
+            when (outcome) {
+                PageColorizeOutcome.COMPLETED -> {
+                    controller.rebindTranslatedStreamForPref(page)
+                    page.showTranslatedImage = true
+                    eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(setOf(page)))
+                    mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
+                }
+                PageColorizeOutcome.UNAVAILABLE -> withUIContext {
+                    Injekt.get<Application>().toast(ATMR.strings.manga_colorize_unavailable)
+                }
+                PageColorizeOutcome.PAGE_BUSY -> withUIContext {
+                    Injekt.get<Application>().toast(ATMR.strings.reader_colorize_page_busy)
+                }
+                PageColorizeOutcome.DECODE_FAILED,
+                PageColorizeOutcome.FAILED,
+                -> withUIContext {
+                    Injekt.get<Application>().toast(ATMR.strings.reader_colorize_page_failed)
+                }
+            }
+        }
+    }
+
+    internal fun colorizeCurrentChapter() {
+        val manga = manga ?: return
+        val currentChapter = getCurrentChapter() ?: return
+        val domainChapter = currentChapter.chapter.toDomainChapter() ?: return
+        val ready = translationManager.isColorizationReady()
+        val chapterId = domainChapter.id ?: return
+        val translationJobActive = translationManager.isChapterBatchActive(chapterId, includePaused = false) &&
+            !translationManager.isChapterColorizeOnlyQueuedOrRunning(chapterId)
+
+        val outcome = resolveReaderColorizeOutcome(
+            ready = ready,
+            translationJobActive = translationJobActive,
+        ) {
+            translationManager.colorizeChapter(manga, domainChapter)
+        }
+
+        val message = when (outcome) {
+            ReaderColorizeOutcome.UNAVAILABLE -> ATMR.strings.manga_colorize_unavailable
+            ReaderColorizeOutcome.TRANSLATION_JOB_ACTIVE -> ATMR.strings.reader_colorize_conflict_translation
+            ReaderColorizeOutcome.QUEUED -> ATMR.strings.reader_colorize_queued
+            ReaderColorizeOutcome.QUEUE_FAILED -> ATMR.strings.reader_colorize_queue_failed
+        }
+        Injekt.get<Application>().toast(message)
+    }
+}
+
+internal enum class ReaderColorizeOutcome {
+    UNAVAILABLE,
+    TRANSLATION_JOB_ACTIVE,
+    QUEUED,
+    QUEUE_FAILED,
+}
+
+internal fun resolveReaderColorizeOutcome(
+    ready: Boolean,
+    translationJobActive: Boolean = false,
+    admit: () -> Boolean,
+): ReaderColorizeOutcome {
+    if (!ready) return ReaderColorizeOutcome.UNAVAILABLE
+    if (translationJobActive) return ReaderColorizeOutcome.TRANSLATION_JOB_ACTIVE
+    return if (admit()) ReaderColorizeOutcome.QUEUED else ReaderColorizeOutcome.QUEUE_FAILED
 }

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
@@ -104,6 +105,8 @@ fun TranslationCompareHandle(
     onSelectTranslated: () -> Unit,
     onToggleAutoTranslate: () -> Unit,
     onOpenSettings: () -> Unit,
+    onColorizeChapter: () -> Unit,
+    onColorizePage: () -> Unit,
     onPeekChange: (Boolean) -> Unit,
     idleFadeEnabled: Boolean,
     dockEnd: Boolean,
@@ -289,6 +292,14 @@ fun TranslationCompareHandle(
                     expanded = false
                 },
                 onToggleAutoTranslate = onToggleAutoTranslate,
+                onColorizeChapter = {
+                    onColorizeChapter()
+                    expanded = false
+                },
+                onColorizePage = {
+                    onColorizePage()
+                    expanded = false
+                },
                 onOpenSettings = {
                     onOpenSettings()
                     expanded = false
@@ -331,6 +342,8 @@ private fun FloaterMenu(
     onSelectTranslated: () -> Unit,
     onToggleAutoTranslate: () -> Unit,
     onOpenSettings: () -> Unit,
+    onColorizeChapter: () -> Unit,
+    onColorizePage: () -> Unit,
     onSizeChangedPx: (IntSize) -> Unit,
     visible: Boolean,
     dockEnd: Boolean,
@@ -399,6 +412,22 @@ private fun FloaterMenu(
                         onCheckedChange = { onToggleAutoTranslate() },
                     )
                 }
+                FloaterMenuRow(
+                    icon = Icons.Outlined.Palette,
+                    label = stringResource(ATMR.strings.reader_colorize_page),
+                    tint = inactiveColor,
+                    enabled = true,
+                    rowAlpha = 1f,
+                    onClick = onColorizePage,
+                )
+                FloaterMenuRow(
+                    icon = Icons.Outlined.Palette,
+                    label = stringResource(ATMR.strings.reader_colorize_chapter),
+                    tint = inactiveColor,
+                    enabled = true,
+                    rowAlpha = 1f,
+                    onClick = onColorizeChapter,
+                )
                 FloaterMenuRow(
                     icon = Icons.Outlined.Settings,
                     label = stringResource(ATMR.strings.reader_compare_open_settings),

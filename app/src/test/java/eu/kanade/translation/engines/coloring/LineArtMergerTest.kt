@@ -28,87 +28,9 @@ class LineArtMergerTest {
         }
     }
 
-    @Test
-    fun `merge leaves flat pages unchanged`() {
-        val width = 8
-        val height = 8
-        val colored = flat(width, height, probes.getValue("skin"))
-        val bw = flat(width, height, floatArrayOf(1f, 1f, 1f))
-        val merged = LineArtMerger.merge(colored, bw, width, height, sigma = 3f, ink = 1f)
-        for (i in colored.indices) {
-            abs(merged[i] - colored[i]) shouldBeLessThan ROUND_TRIP_TOLERANCE
-        }
-    }
-
-    @Test
-    fun `merge re-imposes ink lightness only at edges and keeps hue`() {
-        val width = 32
-        val height = 8
-        val colored = flat(width, height, probes.getValue("skin"))
-        val bw = flat(width, height, floatArrayOf(1f, 1f, 1f))
-        // Black stripe spanning columns 12..19 re-imposes its edges.
-        for (y in 0 until height) {
-            for (x in 12..19) {
-                bw[3 * (y * width + x)] = 0f
-                bw[3 * (y * width + x) + 1] = 0f
-                bw[3 * (y * width + x) + 2] = 0f
-            }
-        }
-        val merged = LineArtMerger.merge(colored, bw, width, height, sigma = 3f, ink = 1f)
-
-        val coloredLab = LineArtMerger.rgbToLab(colored)
-        val mergedLab = LineArtMerger.rgbToLab(merged)
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                val i = y * width + x
-                val withinBlurReach = x in 3..28
-                if (!withinBlurReach) {
-                    // Beyond the blur reach (radius 9) the detail is zero.
-                    for (c in 0 until 3) {
-                        abs(merged[3 * i + c] - colored[3 * i + c]) shouldBeLessThan ROUND_TRIP_TOLERANCE
-                    }
-                }
-                if (x in 12..19) {
-                    // Stripe pixels darken without touching hue.
-                    abs(mergedLab[3 * i + 1] - coloredLab[3 * i + 1]) shouldBeLessThan HUE_TOLERANCE
-                    abs(mergedLab[3 * i + 2] - coloredLab[3 * i + 2]) shouldBeLessThan HUE_TOLERANCE
-                }
-            }
-        }
-        // At least one stripe pixel must be visibly darker than the source colour.
-        val stripeCenter = LineArtMerger.rgbToLab(
-            merged.sliceArray(3 * (4 * width + 15)..3 * (4 * width + 15) + 2),
-        )
-        (stripeCenter[0] + 5f) shouldBeLessThan coloredLab[3 * (4 * width + 15)]
-    }
-
-    @Test
-    fun `merge stays finite and in range under extreme ink`() {
-        val width = 8
-        val height = 8
-        val colored = flat(width, height, probes.getValue("bug_pink"))
-        val bw = flat(width, height, floatArrayOf(0f, 0f, 0f))
-        val merged = LineArtMerger.merge(colored, bw, width, height, sigma = 3f, ink = 10f)
-        for (value in merged) {
-            (value.isFinite()) shouldBe true
-            (value in 0f..1f) shouldBe true
-        }
-    }
-
-    private fun flat(width: Int, height: Int, rgb: FloatArray): FloatArray {
-        val out = FloatArray(width * height * 3)
-        for (i in 0 until width * height) {
-            out[3 * i] = rgb[0]
-            out[3 * i + 1] = rgb[1]
-            out[3 * i + 2] = rgb[2]
-        }
-        return out
-    }
-
     private companion object {
         const val LAB_TOLERANCE = 0.01f
         const val ROUND_TRIP_TOLERANCE = 0.005f
-        const val HUE_TOLERANCE = 0.05f
 
         // Probe RGBs and their CIELAB (D65) values generated from scikit-image.
         val probes = mapOf(

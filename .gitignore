@@ -68,6 +68,7 @@ kilo.json
 *.apk
 *.aab
 /captures/
+/npu_route/calibration/rawkuma/
 
 # Local native libraries / benchmark payloads
 /app/src/main/jniLibs/

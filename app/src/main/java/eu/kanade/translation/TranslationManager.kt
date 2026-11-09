@@ -15,11 +15,17 @@ import eu.kanade.translation.coordinator.TranslationPendingRequestStore
 import eu.kanade.translation.coordinator.TranslationProgressProjection
 import eu.kanade.translation.coordinator.TranslationRequestCoordinator
 import eu.kanade.translation.coordinator.TranslationSessionCoordinator
-import eu.kanade.translation.engines.coloring.OnnxMangaColorizationEngine
+import eu.kanade.translation.engines.coloring.GpuFirstMangaColorizationEngine
+import eu.kanade.translation.engines.coloring.MangaColorizationInt8Engine
+import eu.kanade.translation.engines.coloring.MangaLightNpuColorizationEngine
+import eu.kanade.translation.engines.coloring.MangaLightHybridColorizationEngine
+import eu.kanade.translation.engines.coloring.NpuMangaColorizationEngine
 import eu.kanade.translation.engines.coloring.PageColorizationEngine
 import eu.kanade.translation.engines.coloring.SanaMangaColoringEngine
 import eu.kanade.translation.engines.inpainting.InpaintingHardwareOverride
 import eu.kanade.translation.engines.inpainting.litert.LiteRTMangaInpaintingEngine
+import eu.kanade.translation.engines.upscaling.PageUpscalingEngine
+import eu.kanade.translation.engines.upscaling.UpscalingModelCatalog
 import eu.kanade.translation.model.PageTranslationView
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.TranslationProgressSnapshot
@@ -31,6 +37,7 @@ import eu.kanade.translation.persistence.ChapterTranslationAccessController
 import eu.kanade.translation.persistence.ChapterTranslationStore
 import eu.kanade.translation.persistence.CleanedImageLifecycleController
 import eu.kanade.translation.persistence.DurableChapterStatusResolver
+import eu.kanade.translation.persistence.PageWriteOrigin
 import eu.kanade.translation.persistence.TranslationFileProvider
 import eu.kanade.translation.processing.TranslationProcessor
 import eu.kanade.translation.processing.batch.progress.TranslationBatchTrackerRegistry
@@ -42,12 +49,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.translation.ColorizationModel
+import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.TranslationPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -141,8 +151,20 @@ class TranslationManager private constructor(
      */
     internal var colorizationEngine: PageColorizationEngine? =
         if (testConstruction == null) {
-            buildColorizationEngine(translationPreferences.translationColorizationModel().get())
+            buildColorizationEngine(currentColorizationSelection())
                 .also { processor.colorizationEngine = it }
+        } else {
+            null
+        }
+
+    /**
+     * Optional page upscaling engine (QuickSRNetLarge). Attached to the processor;
+     * availability is gated upstream by [UpscalingModelCatalog].
+     */
+    internal var upscalingEngine: PageUpscalingEngine? =
+        if (testConstruction == null) {
+            UpscalingModelCatalog.createEngine(context)
+                .also { processor.upscalingEngine = it }
         } else {
             null
         }
@@ -162,24 +184,57 @@ class TranslationManager private constructor(
         // in-flight COLOR stage.
         if (testConstruction == null) {
             applicationScope.launch {
-                translationPreferences.translationColorizationModel().changes()
+                combine(
+                    translationPreferences.translationColorizationModel().changes(),
+                    translationPreferences.translationColorizationQuality().changes(),
+                ) { model, quality ->
+                    ColorizationSelection(
+                        model = model,
+                        quality = if (model == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
+                            quality
+                        } else {
+                            ColorizationQuality.DEFAULT
+                        },
+                    )
+                }
+                    .distinctUntilChanged()
                     .drop(1)
-                    .collect { model -> swapColorizationEngine(model) }
+                    .collect(::swapColorizationEngine)
             }
         }
     }
 
-    private fun buildColorizationEngine(model: ColorizationModel): PageColorizationEngine = when (model) {
-        ColorizationModel.MANGA_COLORIZATION_V2 -> OnnxMangaColorizationEngine(context)
+    private data class ColorizationSelection(
+        val model: ColorizationModel,
+        val quality: ColorizationQuality,
+    )
+
+    private fun currentColorizationSelection(): ColorizationSelection {
+        val model = translationPreferences.translationColorizationModel().get()
+        val quality = if (model == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
+            translationPreferences.translationColorizationQuality().get()
+        } else {
+            ColorizationQuality.DEFAULT
+        }
+        return ColorizationSelection(model, quality)
+    }
+
+    private fun buildColorizationEngine(selection: ColorizationSelection): PageColorizationEngine = when (selection.model) {
+        ColorizationModel.MANGA_COLORIZATION_V2 -> GpuFirstMangaColorizationEngine(context)
+        ColorizationModel.MANGA_COLORIZATION_V2_INT8 -> MangaColorizationInt8Engine(context, selection.quality)
+        ColorizationModel.MANGA_COLORIZATION_V2_NPU -> NpuMangaColorizationEngine(context, NpuMangaColorizationEngine.Variant.FP32)
+        ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8 -> NpuMangaColorizationEngine(context, NpuMangaColorizationEngine.Variant.W8A8)
         ColorizationModel.SANA_V2 -> SanaMangaColoringEngine(
             context = context,
             enableExperimentalNpu = translationPreferences.translationColorizationNpu().get(),
         )
+        ColorizationModel.MANGA_LIGHT_NPU_SM8650 -> MangaLightNpuColorizationEngine(context)
+        ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU -> MangaLightHybridColorizationEngine(context)
     }
 
-    private fun swapColorizationEngine(model: ColorizationModel) {
+    private fun swapColorizationEngine(selection: ColorizationSelection) {
         val previous = colorizationEngine
-        val next = buildColorizationEngine(model)
+        val next = buildColorizationEngine(selection)
         processor.colorizationEngine = next
         colorizationEngine = next
         previous?.close()
@@ -386,8 +441,7 @@ class TranslationManager private constructor(
     /**
      * Queues and starts a COLORIZE-ONLY run: the colorization engine runs
      * directly on each original page — no OCR, translation, or inpaint.
-     * Requires the chapter's files to be downloaded and the colorization
-     * preference to be on; the caller owns those gates.
+     * Requires the colorization preference to be on; the caller owns that gate.
      */
     fun colorizeChapter(
         manga: Manga,
@@ -405,6 +459,47 @@ class TranslationManager private constructor(
             colorizeOnly = true,
         )
         return result == eu.kanade.translation.coordinator.TranslationRequestCoordinator.AdmissionResult.QUEUED
+    }
+
+    /** True when the chapter's outstanding queue entry is a colorize-only run (waiting or executing). */
+    fun isChapterColorizeOnlyQueuedOrRunning(chapterId: Long): Boolean =
+        batchCoordinator.colorizeOnlyQueuedOrRunning(chapterId)
+
+    /**
+     * Colors ONE page from its readable bytes — the reader's current page,
+     * streamed or downloaded — with no OCR/translation/inpaint. [origin] owns
+     * the page stage lease for the run: MANUAL preempts reader AUTO work,
+     * AUTO is denied while any pipeline stage owns the page (PAGE_BUSY).
+     */
+    suspend fun colorizeCurrentPage(
+        manga: Manga,
+        chapter: Chapter,
+        source: HttpSource,
+        pageKey: String,
+        streamFn: () -> java.io.InputStream,
+        origin: PageWriteOrigin = PageWriteOrigin.MANUAL,
+    ): PageColorizeOutcome {
+        if (!isColorizationReady()) return PageColorizeOutcome.UNAVAILABLE
+        val chapterId = chapter.id ?: return PageColorizeOutcome.FAILED
+        val store = openOrCreateActiveChapterTranslationStoreSuspend(
+            chapterId = chapterId,
+            chapterName = chapter.name,
+            scanlator = chapter.scanlator,
+            mangaTitle = manga.title,
+            source = source,
+            mangaId = manga.id,
+        ) ?: return PageColorizeOutcome.FAILED
+        // Reader-direct colorize never enters the queue pipeline's own stage
+        // reporting, so the status pill signal is published here for the run.
+        return readerCoordinator.withColorizeStageSignal(chapterId, pageKey) {
+            processor.colorizeOriginalPage(
+                pageKey = pageKey,
+                streamFn = streamFn,
+                store = store,
+                companionDir = processor.companionDirectory(manga, chapter, source),
+                origin = origin,
+            )
+        }
     }
 
     /** The colorization pass can run: pref on and a colorization engine attached. */
@@ -629,4 +724,22 @@ class TranslationManager private constructor(
     ) = readerCoordinator.cancelAllPageTranslationsOffMain(cancelBatchQueue, reason)
 
     fun statusFlow(): Flow<Translation> = batchCoordinator.statusFlow()
+}
+
+/** Terminal outcome of a single-page colorize-only run started from the reader. */
+enum class PageColorizeOutcome {
+    /** The colored image was persisted and committed to the chapter store. */
+    COMPLETED,
+
+    /** Colorization is switched off or no colorization engine is attached. */
+    UNAVAILABLE,
+
+    /** The page's image bytes could not be decoded. */
+    DECODE_FAILED,
+
+    /** Another pipeline stage owns the page's work lease. */
+    PAGE_BUSY,
+
+    /** The engine failed or the result could not be persisted. */
+    FAILED,
 }

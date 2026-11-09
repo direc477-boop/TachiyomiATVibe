@@ -25,9 +25,6 @@ import torch
 from PIL import Image, ImageDraw
 
 
-VAL_DIR = os.path.join(common.EXPORTED, "validation")
-
-
 # ---------------------------------------------------------------- pages
 
 def make_synthetic_page(seed):
@@ -129,7 +126,8 @@ def sheet(bw01, ref01, graph01, path):
 
 
 def psnr(a, b):
-    mse = float(np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2))
+    # a/b are 0..255 uint8 images; normalize to [0,1] before the MSE ratio.
+    mse = float(np.mean((a.astype(np.float64) / 255.0 - b.astype(np.float64) / 255.0) ** 2))
     if mse <= 0:
         return 99.0
     return 10 * math.log10(1.0 / mse)
@@ -187,16 +185,22 @@ def graph_loop(colorizer, pinned_model, bw, seed, paths, lat):
 
 
 def main():
-    os.makedirs(VAL_DIR, exist_ok=True)
+    # Graph set: fp16 (default, per handoff baseline) or int8 (DiT INT8-weight set;
+    # VAE graphs stay fp16 until an INT8 VAE export exists).
+    graph_set = sys.argv[1] if len(sys.argv) > 1 else "fp16"
+    if graph_set not in ("fp16", "int8"):
+        raise SystemExit("usage: python step4_validate.py [fp16|int8]")
+    val_dir = os.path.join(common.EXPORTED, "validation" if graph_set == "fp16" else "validation_int8")
+    os.makedirs(val_dir, exist_ok=True)
     for sub in ("pages", "ref_png", "graph_png", "sheets"):
-        os.makedirs(os.path.join(VAL_DIR, sub), exist_ok=True)
+        os.makedirs(os.path.join(val_dir, sub), exist_ok=True)
 
     pinned_model = common.import_pinned_code()
     colorizer = common.load_colorizer_fp32()
     vae = common.build_vae_fp32()
 
     paths = {
-        "dit": os.path.join(common.EXPORTED, "dit_fp16.tflite"),
+        "dit": os.path.join(common.EXPORTED, "dit_int8.tflite" if graph_set == "int8" else "dit_fp16.tflite"),
         "enc": os.path.join(common.EXPORTED, "vae_enc_fp16.tflite"),
         "dec": os.path.join(common.EXPORTED, "vae_dec_fp16.tflite"),
     }
@@ -211,21 +215,21 @@ def main():
         seed = 100 + idx
         bw, bw01 = to_bw_tensor(arr)
         u8 = lambda x: (np.clip(x, 0, 1) * 255).round().astype(np.uint8)[0, 0]
-        save_png(arr, os.path.join(VAL_DIR, "pages", "%s_bw.png" % name))
-        save_png(u8(bw01.numpy()), os.path.join(VAL_DIR, "pages", "%s_bw01.png" % name))
+        save_png(arr, os.path.join(val_dir, "pages", "%s_bw.png" % name))
+        save_png(u8(bw01.numpy()), os.path.join(val_dir, "pages", "%s_bw01.png" % name))
 
         t0 = time.perf_counter()
         ref = torch_reference(colorizer, vae, pinned_model, bw, seed)
         torch_seconds = time.perf_counter() - t0
         graph01 = (bw * 0.5 + 0.5)
         gout = graph_loop(colorizer, pinned_model, bw, seed, paths, lat_total)
-        save_png(u8(ref.numpy()), os.path.join(VAL_DIR, "ref_png", "%s.png" % name))
-        save_png(u8(gout.numpy()), os.path.join(VAL_DIR, "graph_png", "%s.png" % name))
+        save_png(u8(ref.numpy()), os.path.join(val_dir, "ref_png", "%s.png" % name))
+        save_png(u8(gout.numpy()), os.path.join(val_dir, "graph_png", "%s.png" % name))
         sheet(u8(graph01.numpy()), u8(ref.numpy()), u8(gout.numpy()),
-              os.path.join(VAL_DIR, "sheets", "%s_side_by_side.png" % name))
+              os.path.join(val_dir, "sheets", "%s_side_by_side.png" % name))
         diff = float(np.abs(ref.numpy() - gout.numpy()).max())
         rows.append({
-            "page": name, "seed": seed,
+            "page": name, "seed": seed, "graph_set": graph_set,
             "max_abs_pixel_diff": diff,
             "psnr_db": psnr(u8(ref.numpy()), u8(gout.numpy())),
             "torch_reference_seconds": round(torch_seconds, 1),
@@ -235,11 +239,12 @@ def main():
         gc.collect()
 
     lat = {"per_call_seconds": lat_total, "device": "tflite CPU interpreter, 4 threads"}
-    common.write_json(os.path.join(VAL_DIR, "latency.json"), lat)
+    common.write_json(os.path.join(val_dir, "latency.json"), lat)
 
     report = ["# Graph-driven vs PyTorch parity report (UTF-8)", "",
+              "Graph set: %s (VAE graphs fp16 in both sets)." % graph_set,
               "Reference: pinned model.sample() (fp32 Colorizer + fp32 DC-AE, steps=20, cfg=2.0, shift=3.0, sigma=3.0).",
-              "Graph side: dit_fp16/vae_enc_fp16/vae_dec_fp16 via LiteRT CPU interpreter, python Euler loop,",
+              "Graph side: %s/vae_enc_fp16/vae_dec_fp16 via LiteRT CPU interpreter, python Euler loop," % os.path.basename(paths["dit"]),
               "python-side look-vector lookup (normal look + NULL zero vector), pinned merge_lines(sigma=3.0, ink=1.0).", "",
               "| page | seed | max abs pixel diff | PSNR (dB) | torch ref (s) |",
               "|---|---|---|---|---|"]
@@ -248,10 +253,10 @@ def main():
     report += ["", "Latency (informational, this machine):",
                "- DiT step avg %.2fs, max %.2fs (graph, CPU interpreter)" % (lat_total.get("dit_step_avg", -1), lat_total.get("dit_step_max", -1)),
                "- VAE enc %.2fs, VAE dec %.2fs" % (lat_total.get("vae_enc", -1), lat_total.get("vae_dec", -1))]
-    common.write_text(os.path.join(VAL_DIR, "parity_report.md"), "\n".join(report) + "\n")
-    common.write_json(os.path.join(VAL_DIR, "parity_rows.json"), rows)
-    print("STEP4_DONE pages=%d worst_psnr=%.2f worst_max_abs=%.4f" % (
-        len(rows), min(r["psnr_db"] for r in rows), max(r["max_abs_pixel_diff"] for r in rows)))
+    common.write_text(os.path.join(val_dir, "parity_report.md"), "\n".join(report) + "\n")
+    common.write_json(os.path.join(val_dir, "parity_rows.json"), rows)
+    print("STEP4_DONE set=%s pages=%d worst_psnr=%.2f worst_max_abs=%.4f" % (
+        graph_set, len(rows), min(r["psnr_db"] for r in rows), max(r["max_abs_pixel_diff"] for r in rows)))
 
 
 if __name__ == "__main__":

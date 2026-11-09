@@ -15,9 +15,11 @@ import eu.kanade.presentation.more.settings.widget.ApiKeyPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.EditTextPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.ListPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.SearchableListPreferenceWidget
+import eu.kanade.presentation.translation.colorizationModelOptions
 import eu.kanade.translation.engines.translator.AiTranslatorKind
 import eu.kanade.translation.engines.translator.StandardTranslatorKind
 import eu.kanade.translation.engines.translator.providers.AiModelFetcher
+import eu.kanade.translation.engines.upscaling.UpscalingModelCatalog
 import eu.kanade.translation.engines.vision.ocr.OcrModelCatalog
 import eu.kanade.translation.model.TextRecognizerLanguage
 import eu.kanade.translation.model.TextTranslatorLanguage
@@ -27,6 +29,7 @@ import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
+import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.GeminiThinkingMode
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.StandardEngine
@@ -62,6 +65,7 @@ object SettingsTranslationScreen : SearchableSettings {
             getTranslationLangGroup(translationPreferences),
             getInpaintingModeGroup(translationPreferences),
             getColorizationGroup(translationPreferences),
+            getUpscalingGroup(translationPreferences),
             getEngineGroup(translationPreferences),
         )
     }
@@ -71,10 +75,13 @@ object SettingsTranslationScreen : SearchableSettings {
         translationPreferences: TranslationPreferences,
     ): Preference.PreferenceGroup {
         val colorizationEnabled by translationPreferences.translationColorizationEnabled().collectAsState()
-        val models = mapOf(
-            ColorizationModel.MANGA_COLORIZATION_V2 to stringResource(ATMR.strings.pref_colorization_model_mcv2),
-            ColorizationModel.SANA_V2 to stringResource(ATMR.strings.pref_colorization_model_sana),
+        val selectedModel by translationPreferences.translationColorizationModel().collectAsState()
+        val qualities = mapOf(
+            ColorizationQuality.FAST to stringResource(ATMR.strings.pref_colorization_quality_fast),
+            ColorizationQuality.BALANCED to stringResource(ATMR.strings.pref_colorization_quality_balanced),
+            ColorizationQuality.HIGH to stringResource(ATMR.strings.pref_colorization_quality_high),
         )
+        val models = colorizationModelOptions().associate { it.value to it.label }
         return Preference.PreferenceGroup(
             title = stringResource(ATMR.strings.pref_colorization_title),
             preferenceItems = persistentListOf<Preference.PreferenceItem<out Any>>(
@@ -83,11 +90,46 @@ object SettingsTranslationScreen : SearchableSettings {
                     title = stringResource(ATMR.strings.pref_colorization_enabled),
                     subtitle = stringResource(ATMR.strings.pref_colorization_enabled_summary),
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = translationPreferences.autoColorize(),
+                    title = stringResource(ATMR.strings.pref_auto_colorize),
+                    subtitle = stringResource(ATMR.strings.pref_auto_colorize_summary),
+                    enabled = colorizationEnabled,
+                ),
                 Preference.PreferenceItem.ListPreference(
                     pref = translationPreferences.translationColorizationModel(),
                     title = stringResource(ATMR.strings.pref_colorization_model),
                     entries = models.toImmutableMap(),
                     enabled = colorizationEnabled,
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = translationPreferences.translationColorizationQuality(),
+                    title = stringResource(ATMR.strings.pref_colorization_quality),
+                    entries = qualities.toImmutableMap(),
+                    enabled = colorizationEnabled && selectedModel == ColorizationModel.MANGA_COLORIZATION_V2_INT8,
+                ),
+            ),
+        )
+    }
+
+    @Composable
+    private fun getUpscalingGroup(
+        translationPreferences: TranslationPreferences,
+    ): Preference.PreferenceGroup {
+        val operational = UpscalingModelCatalog.operational
+        return Preference.PreferenceGroup(
+            title = stringResource(ATMR.strings.pref_upscaling_title),
+            preferenceItems = persistentListOf<Preference.PreferenceItem<out Any>>(
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = translationPreferences.translationUpscalingEnabled(),
+                    title = stringResource(ATMR.strings.pref_upscaling_enabled),
+                    subtitle = stringResource(
+                        if (operational) {
+                            ATMR.strings.pref_upscaling_enabled_summary
+                        } else {
+                            ATMR.strings.pref_upscaling_unsupported_summary
+                        },
+                    ),
                 ),
             ),
         )

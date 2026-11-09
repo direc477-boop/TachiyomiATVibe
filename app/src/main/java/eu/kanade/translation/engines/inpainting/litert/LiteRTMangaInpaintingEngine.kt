@@ -91,7 +91,8 @@ class LiteRTMangaInpaintingEngine(
                     cachedTime = prefs.getLong(KEY_APP_UPDATE_TIME + baseName, -1L),
                     cachedSize = prefs.getLong(KEY_EXTRACTED_SIZE + baseName, -1L),
                     appUpdateTime = appUpdateTime,
-                ) || bundledAssetPresent(context, assetPath)
+                ) ||
+                    bundledAssetPresent(context, assetPath)
             }
         }
 

@@ -4,14 +4,20 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.translation.PageColorizeOutcome
 import eu.kanade.translation.engines.coloring.PageColorizationEngine
 import eu.kanade.translation.engines.inpainting.InpaintingHardwareOverride
 import eu.kanade.translation.engines.translator.NativeStallWatchdog
 import eu.kanade.translation.engines.translator.TextTranslator
+import eu.kanade.translation.engines.upscaling.PageUpscalingEngine
 import eu.kanade.translation.engines.vision.ocr.PageRecognitionEngine
 import eu.kanade.translation.model.PageTranslation
 import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.isTextlessTerminal
+import eu.kanade.translation.model.PageStage
+import eu.kanade.translation.persistence.ChapterTranslationStore
+import eu.kanade.translation.persistence.LeaseAcquisition
+import eu.kanade.translation.persistence.PageWriteOrigin
 import eu.kanade.translation.persistence.TranslationFileProvider
 import eu.kanade.translation.processing.CleanedPublication
 import eu.kanade.translation.processing.DecodedPage
@@ -128,6 +134,14 @@ internal class TranslationProcessor(
     fun activeColorizationEngine(): PageColorizationEngine? =
         colorizationEngine?.takeIf { translationPreferences?.translationColorizationEnabled()?.get() == true }
 
+    /** Owned by TranslationManager; the upscaling stage gates on the pref at stage time. */
+    @Volatile
+    var upscalingEngine: PageUpscalingEngine? = null
+
+    /** The upscaling engine only when attached and the user gate is on. */
+    fun activeUpscalingEngine(): PageUpscalingEngine? =
+        upscalingEngine?.takeIf { translationPreferences?.translationUpscalingEnabled()?.get() == true }
+
     val nativeStall get() = nativeStallWatchdog.state
     fun permitHolderPageKeySnapshot(): String? = engineLane?.permitHolderPageKeySnapshot()
     val recognitionEngine: PageRecognitionEngine get() = requireEngineLane().recognitionEngine
@@ -150,6 +164,7 @@ internal class TranslationProcessor(
     fun closeEngines() {
         // Attached (not detached) so a restart in the same session colorizes again.
         colorizationEngine?.let { engine -> runCatching { engine.close() } }
+        upscalingEngine?.let { engine -> runCatching { engine.close() } }
         requireEngineLane().closeEngines()
     }
 
@@ -159,6 +174,146 @@ internal class TranslationProcessor(
 
     fun companionDirectory(manga: Manga, chapter: Chapter, source: HttpSource): UniFile? =
         provider?.getCompanionImageDir(manga.title, source, chapter.name, chapter.scanlator)
+
+    /**
+     * Colorize-only primitive for ONE page — the same recipe the batch
+     * colorize-only pass runs per page: decode the original, colorize it
+     * directly (no OCR/translation/inpaint stage ever runs), commit to the
+     * chapter store. Never throws for a page failure; the outcome says what
+     * happened. Acquires the page stage lease for [origin] (MANUAL preempts
+     * reader AUTO work; AUTO is denied while any stage owns the page) and
+     * publishes a RUNNING coloring entry first, so holders, the status pill
+     * and the batch tracker show live state instead of a silent stall.
+     */
+    suspend fun colorizeOriginalPage(
+        pageKey: String,
+        streamFn: () -> InputStream,
+        store: ChapterTranslationStore,
+        companionDir: UniFile?,
+        origin: PageWriteOrigin,
+    ): PageColorizeOutcome {
+        // First call builds the colorization runtime; absence is feature-absence.
+        val engine = activeColorizationEngine() ?: return PageColorizeOutcome.UNAVAILABLE
+        val lease = when (val acquired = store.tryAcquirePageStageLease(pageKey, PageStage.Render, origin)) {
+            is LeaseAcquisition.Granted -> acquired.lease
+            is LeaseAcquisition.Denied -> return PageColorizeOutcome.PAGE_BUSY
+        }
+        try {
+            store.markColorizeRunning(pageKey, "$origin:colorize-running")
+            val decoded = try {
+                decodeImage(pageKey, streamFn) { recognitionEngine }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                logcat(LogPriority.WARN, t) { "TranslationProcessor: decode failed for colorize on page $pageKey" }
+                null
+            } ?: run {
+                finishTerminal(
+                    pageKey,
+                    store,
+                    lease.token,
+                    StageStatus.FAILED,
+                    "Page image could not be decoded",
+                    origin,
+                )
+                return PageColorizeOutcome.DECODE_FAILED
+            }
+            try {
+                val page = PageTranslation(sourceFileName = pageKey).apply {
+                    imgWidth = decoded.bitmap.width.toFloat()
+                    imgHeight = decoded.bitmap.height.toFloat()
+                    originalImgWidth = decoded.originalWidth.toFloat()
+                    originalImgHeight = decoded.originalHeight.toFloat()
+                    decodeSampleSize = decoded.sampleSize
+                    sourceFingerprint = decoded.sourceFingerprint
+                    ocrStatus = StageStatus.SKIPPED
+                    translationStatus = StageStatus.SKIPPED
+                    inpaintStatus = StageStatus.SKIPPED
+                    originalImageFallback = true
+                    updatedAt = System.currentTimeMillis()
+                     // colorize() never throws for a page failure: it marks
+                     // coloringStatus FAILED and returns null.
+                     val upscaler = activeUpscalingEngine()
+                     colorize(
+                         pageKey = pageKey,
+                         page = this,
+                         coloringEngine = engine,
+                         companionDir = if (upscaler != null) null else companionDir,
+                         base = decoded.bitmap,
+                         fromOriginal = true,
+                     )
+                     if (upscaler != null && coloringStatus == StageStatus.READY) {
+                         try {
+                             upscale(pageKey, this, upscaler, companionDir)
+                         } catch (cancelled: CancellationException) {
+                             throw cancelled
+                         } catch (t: Throwable) {
+                             coloringStatus = StageStatus.FAILED
+                             coloringError = t.message ?: "Upscaling failed"
+                         }
+                     }
+                 }
+                 val commit = try {
+                     store.updatePageFromCurrentSnapshot(pageKey, "$origin:colorize-page") { page }
+                 } finally {
+                     releasePageBitmaps(page)
+                 }
+                if (commit is ChapterTranslationStore.PatchResult.Rejected) {
+                    // The store moved under us — a newer owner owns the state.
+                    // Writing a terminal now would clobber it, so the RUNNING
+                    // marker is left for that owner to supersede.
+                    logcat(LogPriority.WARN) {
+                        "TranslationProcessor: colorize commit rejected for page $pageKey: ${commit.reason}"
+                    }
+                    return PageColorizeOutcome.FAILED
+                }
+                return if (page.coloringStatus == StageStatus.READY) {
+                    PageColorizeOutcome.COMPLETED
+                } else {
+                    PageColorizeOutcome.FAILED
+                }
+            } finally {
+                releaseDecoded(decoded)
+            }
+        } catch (cancelled: CancellationException) {
+            finishTerminal(
+                pageKey,
+                store,
+                lease.token,
+                StageStatus.CANCELLED,
+                "Colorization cancelled",
+                origin,
+            )
+            throw cancelled
+        } finally {
+            store.releasePageStageLease(pageKey, origin, lease.token)
+        }
+    }
+
+    /**
+     * Transitions a stranded RUNNING marker to a terminal state, only while
+     * we still own the page lease — an evicted holder must never touch the
+     * page a newer owner is writing.
+     */
+    private suspend fun finishTerminal(
+        pageKey: String,
+        store: ChapterTranslationStore,
+        leaseToken: Long,
+        status: String,
+        error: String,
+        origin: PageWriteOrigin,
+    ) {
+        withContext(NonCancellable) {
+            if (store.pageLeases[pageKey]?.token != leaseToken) return@withContext
+            store.updatePageFromCurrentSnapshot(pageKey, "$origin:colorize-terminal") { current ->
+                (current ?: PageTranslation(sourceFileName = pageKey)).apply {
+                    coloringStatus = status
+                    coloringError = error
+                    updatedAt = System.currentTimeMillis()
+                }
+            }
+        }
+    }
 
     /** Decodes a source image under the shared memory budget. */
     suspend fun decodeImage(
@@ -388,10 +543,17 @@ internal class TranslationProcessor(
         fromOriginal: Boolean = false,
     ): Bitmap? = withContext(Dispatchers.Default) {
         val input = base ?: return@withContext null
-        // First call builds the engine runtime; absence (missing assets or a
-        // failed session) is feature-absence, not a page failure — skip it.
+        // First call builds the engine runtime; absence is feature-absence, not
+        // a page failure. A reported initializationError marks a hard-fail route
+        // and must surface as FAILED instead of a silent skip.
         if (!coloringEngine.isAvailable()) {
-            page.coloringStatus = StageStatus.SKIPPED
+            val initFailure = coloringEngine.initializationError()
+            if (initFailure != null) {
+                page.coloringStatus = StageStatus.FAILED
+                page.coloringError = initFailure
+            } else {
+                page.coloringStatus = StageStatus.SKIPPED
+            }
             return@withContext null
         }
         page.coloringStatus = StageStatus.RUNNING
@@ -450,6 +612,100 @@ internal class TranslationProcessor(
         colored
     }
 
+    /**
+     * Upscales [base] (the colored bitmap if present; the cleaned bitmap otherwise)
+     * using [upscalingEngine] by 4x. Enforces zero silent fallback: an unprovisioned
+     * or failing engine throws an explicit exception.
+     */
+    suspend fun upscale(
+        pageKey: String,
+        page: PageTranslation,
+        upscalingEngine: PageUpscalingEngine,
+        companionDir: UniFile? = null,
+        base: Bitmap? = page.coloredBitmap ?: page.cleanedBitmap,
+    ): Bitmap? = withContext(Dispatchers.Default) {
+        val input = base ?: return@withContext null
+        if (!upscalingEngine.isAvailable()) {
+            val initFailure = upscalingEngine.initializationError()
+                ?: "QuickSRNet upscaling engine unavailable"
+            logcat(LogPriority.ERROR) { "TranslationProcessor: upscaling unavailable for page $pageKey: $initFailure" }
+            throw IllegalStateException("Upscaling failed for page $pageKey: $initFailure")
+        }
+        val upscaled = try {
+            upscalingEngine.upscalePage(input)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (oom: OutOfMemoryError) {
+            logcat(LogPriority.ERROR, oom) { "TranslationProcessor: OOM during upscale for page $pageKey" }
+            throw oom
+        } catch (t: Throwable) {
+            logcat(LogPriority.ERROR, t) { "TranslationProcessor: upscale failed for page $pageKey" }
+            throw t
+        }
+
+        if (page.coloredBitmap === input) {
+            if (input !== upscaled) recycleIfNeeded(input)
+            page.coloredBitmap = upscaled
+            try {
+                if (companionDir != null) {
+                    val publication = cleanedPublication
+                    if (publication != null) {
+                        val written = withContext(Dispatchers.IO) {
+                            publication.writeVerifiedColoredImage(companionDir, pageKey, upscaled)
+                        }
+                        page.coloredImageName = written.name
+                        page.coloredImageContentHash = written.contentSha256
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                withContext(NonCancellable) {
+                    if (page.coloredBitmap === upscaled) {
+                        recycleIfNeeded(upscaled)
+                        page.coloredBitmap = null
+                        page.coloringStatus = StageStatus.FAILED
+                        page.coloringError = "Upscaling cancelled during publication"
+                    }
+                }
+                throw cancelled
+            } catch (t: Throwable) {
+                logcat(LogPriority.WARN, t) { "TranslationProcessor: upscaled colored image publication failed for $pageKey" }
+                page.coloredImageName = null
+                page.coloredImageContentHash = null
+                page.coloringStatus = StageStatus.FAILED
+                page.coloringError = "Upscaled colored image publication failed"
+            }
+        } else if (page.cleanedBitmap === input) {
+            if (input !== upscaled) recycleIfNeeded(input)
+            page.cleanedBitmap = upscaled
+            try {
+                if (companionDir != null) {
+                    val publication = cleanedPublication
+                    if (publication != null) {
+                        val written = withContext(Dispatchers.IO) {
+                            publication.writeVerifiedCleanedImage(companionDir, pageKey, upscaled)
+                        }
+                        page.cleanedImageName = written.name
+                        page.cleanedImageContentHash = written.contentSha256
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                withContext(NonCancellable) {
+                    if (page.cleanedBitmap === upscaled) {
+                        recycleIfNeeded(upscaled)
+                        page.cleanedBitmap = null
+                    }
+                }
+                throw cancelled
+            } catch (t: Throwable) {
+                logcat(LogPriority.WARN, t) { "TranslationProcessor: upscaled cleaned image publication failed for $pageKey" }
+                page.cleanedImageName = null
+                page.cleanedImageContentHash = null
+                page.originalImageFallback = true
+            }
+        }
+        upscaled
+    }
+
     /** Stable 64-bit page seed for the diffusion sampler. */
     private fun stableSeed(pageKey: String): Long {
         var hash = 1125899906842597L
@@ -478,8 +734,10 @@ internal class TranslationProcessor(
         // Colorization extends the page budget: 20 diffusion steps can exceed
         // the whole translate+inpaint budget when demoted to CPU.
         val colorizationEnabled = activeColorizationEngine() != null
+        val upscalingEnabled = activeUpscalingEngine() != null
         val pageTimeoutMs = TranslationProcessingTimeouts.SINGLE_PAGE_TIMEOUT_MS +
-            if (colorizationEnabled) TranslationProcessingTimeouts.COLORING_PHASE_TIMEOUT_MS else 0L
+            (if (colorizationEnabled) TranslationProcessingTimeouts.COLORING_PHASE_TIMEOUT_MS else 0L) +
+            (if (upscalingEnabled) TranslationProcessingTimeouts.UPSCALING_PHASE_TIMEOUT_MS else 0L)
         return try {
             // TachiyomiAT: publish the transient Preparing boundary before any
             // work starts so feedback can distinguish "queued" from "running".
@@ -544,14 +802,19 @@ internal class TranslationProcessor(
                 // TachiyomiAT: colorization is a derived post-inpaint stage and
                 // never re-fails the page; its pill time folds under CLEANING.
                 val coloringEngine = activeColorizationEngine()
+                val upscaler = activeUpscalingEngine()
                 if (coloringEngine != null) {
                     if (page!!.cleanedBitmap != null) {
                         activeStage = "COLOR"
                         stageReporter?.invoke(TranslationStageSignal.COLORING)
-                        colorize(pageKey, page!!, coloringEngine, companionDir)
+                        colorize(pageKey, page!!, coloringEngine, if (upscaler != null) null else companionDir)
                     } else {
                         page!!.coloringStatus = StageStatus.SKIPPED
                     }
+                }
+                if (upscaler != null) {
+                    activeStage = "UPSCALE"
+                    upscale(pageKey, page!!, upscaler, companionDir)
                 }
                 // TachiyomiAT: the candidate is assembled; remaining work is
                 // persistence of the final record by the caller. Signal this so
@@ -576,6 +839,10 @@ internal class TranslationProcessor(
                         "COLOR" -> {
                             current.coloringStatus = StageStatus.FAILED
                             current.coloringError = "Single-page colorization timed out"
+                        }
+                        "UPSCALE" -> {
+                            current.translationStatus = StageStatus.FAILED
+                            current.translationError = "Single-page upscaling timed out"
                         }
                         else -> {
                             current.translationStatus = StageStatus.FAILED

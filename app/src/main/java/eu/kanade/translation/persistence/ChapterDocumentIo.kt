@@ -419,7 +419,8 @@ class AtomicChapterDocuments(
         val readback = if (wrote) io.read(backupName) else null
         val matched = wrote && readback?.contentEquals(bytes) == true
         if (!matched) {
-            val prefixMatches = readback != null && readback.size >= bytes.size &&
+            val prefixMatches = readback != null &&
+                readback.size >= bytes.size &&
                 bytes.indices.all { readback[it] == bytes[it] }
             logcat(LogPriority.WARN) {
                 "TachiyomiAT chapter backup copy probe: " +

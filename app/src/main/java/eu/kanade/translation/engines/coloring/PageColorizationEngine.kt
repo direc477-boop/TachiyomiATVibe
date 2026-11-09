@@ -16,6 +16,9 @@ interface PageColorizationEngine : AutoCloseable {
     /** Stamp describing the live backend+artifact mix, for coloring provenance. */
     fun currentStamp(): String?
 
+    /** Init failure cause; non-null marks a hard-fail route that must surface, never silently skip. */
+    fun initializationError(): String? = null
+
     /**
      * Colorizes a B&W manga page. [seed] is honored only by stochastic backends
      * (deterministic engines ignore it). Returns the result at the source

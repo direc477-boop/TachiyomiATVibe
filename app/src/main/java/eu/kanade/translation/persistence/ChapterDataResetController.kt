@@ -238,7 +238,9 @@ internal class ChapterDataResetController(
 
         var ownershipStore = activeStores.get(chapterId)
         val activeStore = ownershipStore
-        val persistedCleanedName = activeStore?.state?.value?.get(pageKey)?.cleanedImageName
+        val persisted = activeStore?.state?.value?.get(pageKey)
+        val persistedCleanedName = persisted?.cleanedImageName
+        val persistedColoredName = persisted?.coloredImageName
         if (activeStore != null) {
             activeStore.deletePage(pageKey)?.let { failures += it }
             activeStore.flush()
@@ -256,22 +258,36 @@ internal class ChapterDataResetController(
             }
         }
 
-        retireCleanedCompanionImages(chapter, manga, source, pageKey, persistedCleanedName, ownershipStore)
+        retirePageCompanionImages(
+            chapter,
+            manga,
+            source,
+            pageKey,
+            persistedCleanedName,
+            persistedColoredName,
+            ownershipStore,
+        )
         return ChapterResetReceipt.incomplete(failures)
     }
 
-    /** Retires the page's cleaned/rendered companion images unless another page still references them. */
-    private fun retireCleanedCompanionImages(
+    /**
+     * Retires the page's cleaned and colored companion images unless another page still
+     * references them; deletePage has already dropped this page's references, so the
+     * guard only needs the other-page check, routed by the name's intrinsic domain.
+     */
+    private fun retirePageCompanionImages(
         chapter: Chapter,
         manga: Manga,
         source: Source,
         pageKey: String,
         persistedCleanedName: String?,
+        persistedColoredName: String?,
         ownershipStore: ChapterTranslationStore?,
     ) {
         val safePageKey = pageKey.substringAfterLast('/').replace(Regex("[^a-zA-Z0-9._-]"), "_")
         val retiredNames = buildSet {
             persistedCleanedName?.let(::add)
+            persistedColoredName?.let(::add)
             add("$safePageKey.cleaned.png")
             add("$safePageKey.cleaned.jpg")
             add("$safePageKey.rendered.png")
@@ -282,12 +298,16 @@ internal class ChapterDataResetController(
                 ?.asSequence()
                 .orEmpty()
                 .mapNotNull { it.name }
-                .filter { it.startsWith("$safePageKey.cleaned.") }
+                .filter { it.startsWith("$safePageKey.cleaned.") || it.startsWith("$safePageKey.colored.") }
                 .forEach(::add)
         }
         retiredNames.forEach { imageName ->
             retirePageCompanionImage(manga, chapter, source, pageKey, imageName) {
-                ownershipStore?.isCleanedImageReferencedByAnotherPage(pageKey, imageName) == true
+                if (imageName.contains(".colored.")) {
+                    ownershipStore?.let { !it.mayDeleteColoredImage(pageKey, imageName) } ?: false
+                } else {
+                    ownershipStore?.isCleanedImageReferencedByAnotherPage(pageKey, imageName) == true
+                }
             }
         }
     }

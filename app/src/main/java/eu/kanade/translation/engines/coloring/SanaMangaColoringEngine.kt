@@ -79,12 +79,13 @@ class SanaMangaColoringEngine(
                 val cacheValid = extracted.exists() &&
                     extracted.length() > 1_000_000L &&
                     prefs.getLong(KEY_APP_UPDATE_TIME + baseName, -1L) == appUpdateTime
-                cacheValid || try {
-                    context.assets.open(assetPath).close()
-                    true
-                } catch (_: Exception) {
-                    false
-                }
+                cacheValid ||
+                    try {
+                        context.assets.open(assetPath).close()
+                        true
+                    } catch (_: Exception) {
+                        false
+                    }
             }
         }
     }

@@ -1,0 +1,1518 @@
+{
+  "summary": {
+    "total_pages": 99,
+    "calibration_pages": 79,
+    "held_out_pages": 20,
+    "series": {
+      "drawing-saikyou": {
+        "total": 34,
+        "calib": 27,
+        "held_out": 7
+      },
+      "musket-girls": {
+        "total": 14,
+        "calib": 11,
+        "held_out": 3
+      },
+      "osananajimi": {
+        "total": 35,
+        "calib": 28,
+        "held_out": 7
+      },
+      "shinda-ishii": {
+        "total": 16,
+        "calib": 13,
+        "held_out": 3
+      }
+    }
+  },
+  "verification": [
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\001.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "300d289ca70233bb6d3f397af89ec997243a76155a623bc4fbc31ddd5108a4e2"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\002.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "73996574e71d9f80106551dc433818efa94cb326ab8f982437d8aee034726e00"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\003.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "6e1c0ec2572ddb2f6ebd69113abff1b8130b922de8da7a23c19119c3019a5a85"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\004.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "c5f3fcae8342c2bdba9e4a28dc48db8d00c7dcc653a3473ee761b40d05014b44"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\005.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "c85b76b5fbe4b5d7074d28a65bcc0318a730c2e544da24ab06fa290ceb684a57"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\006.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "a77d5bb15c4363a0ea4cc61b3cae277c50979baf898805aea23aeebfe11651f2"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\007.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "0fbd12a137de5393d35c9add066b6040af4bc909f499b37f303021aeb1ed1c61"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\008.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "5abca30bd3d6e590006ba4a0b405a3d101b364b5658db0ead5d5d12b9d294467"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\009.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "441ae68a6787ac99e98f3a450f156779feceae1ca9fc660c345e1d44af103d21"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\010.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "4fd88399707e367953a00c22614a296d1702e3d00d609b4981ca89064b9c85ce"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\011.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "a7d300bfc8f1e3660cec132e2bed9d90e87e9a09f9554206a0a660e7b15a519e"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\012.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "a2012ac8e4071fa6c05d5678db7076e15223044dd7c550b3fb2d8aeafc674bf4"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\013.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "48ad53ff09b12d806eb6f5e27e56f6bdbe14ae4070a5c4d0aa5882835e70cd3b"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\014.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "db30d44d20e5569964b1393de4e2a0ccf24486b87e99370c86eb71478815b507"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\015.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "ba2d0b98bf01ad052c58784973e56ae97313678d9b135740b51525a4ee140ab8"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\016.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "796553a5e5002ae44e119a97c153ac3f4f0b755ae47a284cedb1d4f977bc59df"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\017.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "27698a1b4a260dca6c7f637f9562e55e8f804e05fd5a5b2f7732dc1a326baace"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\018.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "4c903f485c6f24f30f27426635cef961f28e6bf70e9ad65ad99aee9eeed7beaf"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\001.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "611c83da0786ca23d53fd3967d415ad4be5a8519a3709feb2aba2c7c0f4484f5"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\002.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "ed71c808c9ff0e1f33a413a8ffdf860aacc81c63a71dee508b0769ba48eb376d"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\003.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "caec82396341aa07de11654890756ffe1c58fba7d28c021d8c4d5e625a946514"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\004.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "f2d1c7c74398f9fbe1a8d79c384a28fc2dd7c339fe115b3367be18c79cca2f90"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\005.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "7b96ab5af41c7a9b35c378330976c76a6adcb0053709d51d03200551e312a0e6"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\006.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "45172080c803ce5c727343ade0915b4243ea7a5744958e1161c8381dd12ce8f3"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\007.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "fe62b0e200ddec8d036fa689a8e1362e27d042d81eb82bb9b1e27cd0b278ba49"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\008.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "cc8473cdbeb2c5c7ba1bd97b959ce1f1b92b3a37113f4417bbb82c6b89f1ea22"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\009.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "9b11ca591c2b467d22200bd00794b553cab7270102be4353fa04ecce27198399"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\010.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "a1035ee66bc54e035effab89bee4f1a96bc250ea613766c08500621871390703"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\011.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "451dc9e53508ac38705500a99cebd7ee63bf1a2914de46905d045543562618c7"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\012.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "d6f8593f88e81afa063a48e709a6c1bf04b8b603a9454ea8c2c1fd3df2dc4104"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\013.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "a409793426c00d3ba647da492b77a4762a836f45efb21a011b2e6a6e2a5bd2cc"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\014.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "92380be3dae61b38e065197a5fc35dae42fa5a3b06b56cbfa6010b2b83908fe7"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\015.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "75158ea21034f91041f713da542ffca1128bd4563261e77d0903946d4564716b"
+    },
+    {
+      "file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\016.jpg",
+      "series": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru",
+      "format": "JPEG",
+      "width": 1350,
+      "height": 1920,
+      "sha256": "f7d3bc0f0d8078e5628c566ada10b838bc5041a7f2aab9f7d135885de802a1e4"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\001.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "75a2f8f89ad8c72219f1c10dee758992f7932cc3ec8bd509ce39f8041599f268"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\002.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "a92fd35daabd61f1c62586e551888da5753ecab76a5021c01eb7fcf62af708da"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\003.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "59158503808d37ca6bcdf68bccbdd920bee63109506e9da04560fca761fb709f"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\004.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "b70870bd54510a344f67d057cfcafff8e111dad0da3b926599b198e615b985ec"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\005.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "1688ec064eab69b92410f3449b8eccdd4cb695ecde176046fc3f8e4965a6a998"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\006.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "6bf0d9528c555d7e17fa99090459cf8454e9b091419c1f4085c6711b745ae9dd"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\007.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "a9c34d51dd5ceb8754bce9159c19bf1cf3dcd41e3347e23a3c8fb069e0d6dee4"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\008.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "4e64719517a10dbe9099dfb9c97011181053030fecbd33df67e8100907dfc7c3"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\009.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "62882c079dc745f28e039b12b1c4d40973b34e388663d134cb28eda66e9c6151"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\010.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "ee1278a907b041b057d6c21807a1e5cd167bffb567b1e3d49a07c1520383676b"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\011.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "c11af9d904e82f34dbcb138bfda0a8c1b54b2cce822762cfa3bfd7e3d2f239cc"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\012.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "949f236bb46caa65dc322b9cb09910712dbbe08e4f3151c135af189d59ce1ce6"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\013.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "cdeae4c77c8b70e634194712a64605799540032f5ad076de8e6fa8c8040f16d1"
+    },
+    {
+      "file": "musket-girls\\chapter-37.2.433031\\014.jpg",
+      "series": "musket-girls",
+      "format": "JPEG",
+      "width": 720,
+      "height": 1024,
+      "sha256": "87637926e5c5f7f910e8b2c46da126160ce2106a2c784aacaf518a67b4218a65"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\001.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "e57dd0733b843e1e378359578c7e34d24c54598eae6b739940c38b7deb6aa16d"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\002.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "02b98550b3e5c7d51ee6abd5e6fa6b6fc79db3658a0dd3b5e509ad7cce7752d0"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\003.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "164d1b2e8803fadef3e964fdb217ff6196e37f3b04fd97211730fae1ef0cd4ec"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\004.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "d07da8b903186f07f8443c8fc891e374ac20796c1a4ab0ad2c245933fb39911f"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\005.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "7cfd5e4d889e28c464977a2fa0ea3a7ef72c22308369dcebe6acea0be4fddf86"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\006.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "4b17feaeb9204a2376345711b3cb2739b8d7e1267ed9f9715407581b99b9af75"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\007.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "7d805a9903947b07c12b37005fa5ac0a8e1b3cb300747a63eacc17443c7c4b9a"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\008.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "a51d4b8a95d80e725734ddc8c03ec52bf0340ec49e7f5328df9430ea235aa025"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\009.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "f84b0db7aee91e61314e6fbf41d69e0ff3b542cb2aa8711e4f4bd1cf2c67f1b2"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\010.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "c525f9a2267e1914b47aef953147fe100da68903324782b68585d5a8038f438b"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\011.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "715deff0bdc5cd5c9c464d3f1d4df67f5fce74f9bae372619b1ae032ee041a84"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\012.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "2f5c87ae0ec3797983dcffda967055d7eeaca9348e84b68b090f8052adb8e24a"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\013.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "df9d84ca9c88f084467c1cc0cac3fa2443a01f649fa60dca3945f54c8e4ec5cc"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\014.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "e849b39eda17934e057c5c05ec6e8b278450638ed6f64b40b28fe0a9b61e37a8"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\015.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "d67e22df725ebde047de370fce1e93efc0b5767341bde53dbf17a8eac67526dd"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\016.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "8971c5ba1337193f0ab247bc8f0117ed4476d201e72c62ce7817b5e23d6e118b"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\017.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "e900c5ffa7e6dde895072f1118d3f3e586d39d92e1043d122bc60e893f4f2a96"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\018.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "600ce3790169b12bfc2d1307f4a129cf69eb6bc6dec4d2ec4837aa867c034148"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\019.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "7d18accaaad93c8468bf1329e465134c6cec854d5ec6fbbfcfd54143e2a356e9"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\020.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "d611d8b4df34cbf58da164a37c3fdbe4b84dce2066b0ca5e406d58984688a777"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\021.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "932fdd8666538bcd3ae8837cf14c2fb701943516308387e672338e0f3b65cbea"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\022.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "faa489100e67745a77453018d84b5b3151b71783f4035600bfa5f3ca1920c467"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\023.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "2bda34427d9030e135f59e6e24ff291146c8cb248087708794a994cf67f3d14d"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\024.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "668dc2949eef9cc68d320b256c50b8342e56becb50b9afb14efb3c623202af4b"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\025.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "39783f4a23c099452c74196ed8af353a2509a825496e7f9e38792ded180fde0f"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\026.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "a249672fab170f71d6a73de44ff75e53e668f203f81bd2fe148c9ab2172dc252"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\027.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "c203b8bc446383744c8c245f83ee92d951b0a707c6033fed58f43c0fbfe6a9ad"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\028.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "5ef68ee2f3c8dcaa6f4967cba999bad967c93a4320b0b04e1780f39f49c70ad3"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\029.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "03cc5057088e6ad535b45631b66a30c5f915f7570a24dca425fae49f3e31dfac"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\030.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "8b2f4aa52a0af9b72510d9364ded9f94e1dd89cf2b64644df84afb43377437e1"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\031.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "9bb89694e47beb31bdcf7645e672cf8c220d1767983e3ef746603c9887312266"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\032.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "2ed9b3d6e8ae170ccbd7e91e49bc5de4d81b36efa12c2e840f09f9ab77a1ebdc"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\033.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "9b2149b858fb0262e0748ea4733d13826a923d89c0dfc240a3356b077b59385b"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\034.png",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "1d58e0573f58ccd47ca039a85041b1851b79d2fd86896ad10dedfce93f164809"
+    },
+    {
+      "file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\035.jpg",
+      "series": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga",
+      "format": "JPEG",
+      "width": 1131,
+      "height": 1608,
+      "sha256": "9f3a67b7a287a87bab3cb66f50ca6f7d9a8f6651ad9a72b10079d5706e447883"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\001.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "c75c9571a545a4a652cc8df7d1bb2986481edd959081cbfd898dd78e4fb76072"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\002.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "7da2b5a6a1b02f97e4161d9e963dc8895e0b293b59f98fa93e0756fd9afa68ad"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\003.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "fbfbafeaf9106d715f8f341cbd033e007e33d85ca52f038e6192d30def66e193"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\004.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "effe93cd334d6beef55a03e5da616d19aad8d0f7a741b7e33db12ed3456d385f"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\005.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "ba8a89477fe170f16dc051c2b660d2d31013070d8dc2fb37f7e0c6a594f66246"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\006.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "dff0b03f65f79e305f9e8be89c64602260c1c96cca3adb4efa650b51d912cc90"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\007.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "53f122129f1c7be6f8d9b003e60a78a1bf54985362dff85bfed40654bd27d3ae"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\008.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "23c9189732107b43e29c95fcc985ff0af3b778113c056133a716fbc64686411d"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\009.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "52eabbf7722586dd939d546cd20e2e9583e04f087fb127546be01652c5d9f11c"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\010.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "34ea3a37ba8099be9ea5b63ba493ff461f094f52ea1261aaf5454c1249df5418"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\011.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "d087f9ca52fcf72eb323104a70c7b138444f4e599f11b88414ef2082b4685f79"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\012.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "a396a8003e14cabf140804e1506dd870381cbbde2c763b16a2b5b6b1a2f985ac"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\013.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "8e56a82c4facb9165f9a232b7e7b60d34cda31f8125c6bb276a13b636874e9e4"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\014.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "a86998b23c875654f8afe8fcd73dfe3a0415c8896516e9b85c8543ddbab025d8"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\015.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "730b1e0e67f04636c29c211aeddfcdca514dc23cf129fb126032bbcfb1104c39"
+    },
+    {
+      "file": "shinda-ishii-no-taigun\\chapter-24.433028\\016.jpg",
+      "series": "shinda-ishii-no-taigun",
+      "format": "JPEG",
+      "width": 1125,
+      "height": 1600,
+      "sha256": "aa7d5954165fd43cb4a770b1dff7fe5b4f7c7ef3f4da14016e141686bf2989e4"
+    }
+  ],
+  "split": [
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\001.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\001.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\002.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\002.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\003.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\003.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\004.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\004.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\005.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\005.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\006.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\006.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\007.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\007.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\008.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\008.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\009.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\009.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\010.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\010.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\011.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\011.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\012.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\012.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\013.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\013.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\014.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\014.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\015.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\015.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\016.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\016.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\017.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\017.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\018.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-202.412574\\018.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\001.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\001.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\002.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\002.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\003.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\003.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\004.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\004.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\005.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\005.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\006.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\006.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\007.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\007.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\008.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\008.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\009.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\009.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\010.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\010.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\011.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\011.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\012.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\012.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\013.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\013.jpg",
+      "series": "drawing-saikyou",
+      "group": "held_out",
+      "is_previous_heldout": true
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\014.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\014.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\015.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\015.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\016.jpg",
+      "rel_file": "drawing-saikyou-mangaka-wa-oekaki-skill-de-isekai-musou-suru\\chapter-203.415731\\016.jpg",
+      "series": "drawing-saikyou",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\001.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\001.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\002.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\002.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\003.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\003.jpg",
+      "series": "musket-girls",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\004.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\004.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\005.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\005.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\006.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\006.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\007.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\007.jpg",
+      "series": "musket-girls",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\008.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\008.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\009.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\009.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\010.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\010.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\011.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\011.jpg",
+      "series": "musket-girls",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\012.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\012.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\013.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\013.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\musket-girls\\chapter-37.2.433031\\014.jpg",
+      "rel_file": "musket-girls\\chapter-37.2.433031\\014.jpg",
+      "series": "musket-girls",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\001.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\001.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\002.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\002.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\003.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\003.jpg",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\004.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\004.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\005.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\005.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\006.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\006.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\007.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\007.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\008.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\008.jpg",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\009.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\009.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\010.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\010.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\011.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\011.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\012.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\012.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\013.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\013.png",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\014.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\014.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\015.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\015.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\016.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\016.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\017.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\017.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\018.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\018.jpg",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\019.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\019.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\020.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\020.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\021.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\021.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\022.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\022.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\023.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\023.png",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\024.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\024.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\025.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\025.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\026.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\026.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\027.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\027.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\028.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\028.jpg",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\029.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\029.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\030.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\030.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\031.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\031.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\032.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\032.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\033.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\033.jpg",
+      "series": "osananajimi",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\034.png",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\034.png",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\035.jpg",
+      "rel_file": "osananajimi-ga-hoshii-to-tsubuyaitara-yoku-issho-ni-asobu-onna-tomodachi-no-yousu-ga-hen-ni-natta-nda-ga\\chapter-21.432933\\035.jpg",
+      "series": "osananajimi",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\001.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\001.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\002.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\002.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\003.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\003.jpg",
+      "series": "shinda-ishii",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\004.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\004.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\005.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\005.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\006.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\006.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\007.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\007.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\008.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\008.jpg",
+      "series": "shinda-ishii",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\009.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\009.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\010.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\010.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\011.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\011.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\012.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\012.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\013.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\013.jpg",
+      "series": "shinda-ishii",
+      "group": "held_out",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\014.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\014.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\015.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\015.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    },
+    {
+      "path": "npu_route\\calibration\\rawkuma\\shinda-ishii-no-taigun\\chapter-24.433028\\016.jpg",
+      "rel_file": "shinda-ishii-no-taigun\\chapter-24.433028\\016.jpg",
+      "series": "shinda-ishii",
+      "group": "calibration",
+      "is_previous_heldout": false
+    }
+  ]
+}

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCV2 576x832 Model Parity & Quality Comparison</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-heading: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --warning-bg: #272115;
+      --warning-border: #9e6a03;
+      --warning-text: #f2cc60;
+      --success-bg: #11271b;
+      --success-border: #238636;
+      --success-text: #3fb950;
+      --badge-bg: #21262d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 16px;
+      font-size: 14px;
+    }
+
+    h1, h2, h3 {
+      color: var(--text-heading);
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .disclaimer-banner {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: var(--warning-text);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+
+    .disclaimer-banner strong {
+      color: #fff;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--badge-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .badge.accent {
+      background: rgba(56, 139, 253, 0.15);
+      border-color: rgba(56, 139, 253, 0.4);
+      color: var(--accent);
+    }
+
+    .badge.green {
+      background: rgba(46, 160, 67, 0.15);
+      border-color: rgba(46, 160, 67, 0.4);
+      color: var(--success-text);
+    }
+
+    /* Controls */
+    .controls-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      background: var(--badge-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+    }
+
+    .btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Comparison Display */
+    .comparison-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 640px) {
+      .comparison-container {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .view-card {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .view-header {
+      padding: 8px 12px;
+      background: #161b22;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-heading);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .view-img-wrap {
+      width: 100%;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .view-img-wrap img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Metrics Table */
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .code-sm {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    .metric-val {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-weight: 600;
+      color: var(--text-heading);
+    }
+
+    .num-col {
+      text-align: right;
+    }
+
+    .hash-val {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>MCV2 576×832 Quantitative Quality & Parity Comparison</h1>
+  <p style="color: var(--text-muted); font-size: 13px;">
+    Held-out evaluation on user asset <code class="code-sm">sasa.png</code> (1080×1535 RGB). Pipeline replicates identical reader production seam: letterbox fitting to 576×832 with paper-white (1.0) padding, aspect cropping, and ink-aware 0.35 chroma merge with 1.5 MP cap.
+  </p>
+
+  <div class="disclaimer-banner">
+    <strong>Execution Environment Notice:</strong> All models in this comparison ran on <strong>Host CPU</strong> (<code class="code-sm">CPUExecutionProvider</code> for ONNX FP16, and <code class="code-sm">XNNPACK</code> for TFLite FP32/W8A8). These host CPU results demonstrate algorithmic numerical fidelity and quantization tolerance. They do not measure physical Qualcomm SM8650 NPU hardware acceleration or NPU latency (NPU HTP v75 AOT models are compiled separately).
+  </div>
+
+  <!-- Interactive Visual Comparison Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>Side-by-Side Visual Comparison</span>
+      <span class="badge green">Deterministic Pipeline Verified</span>
+    </div>
+
+    <!-- Mode Selector -->
+    <div class="controls-grid">
+      <span style="font-size: 12px; color: var(--text-muted); align-self: center; margin-right: 4px;">Pipeline Stage:</span>
+      <button class="btn active" id="btn-stage-merged" onclick="setStage('merged')">Final Merged (1080×1535)</button>
+      <button class="btn" id="btn-stage-raw" onclick="setStage('raw')">Raw Cropped Model Output (576×819)</button>
+    </div>
+
+    <!-- Right Side Model Picker -->
+    <div class="controls-grid">
+      <span style="font-size: 12px; color: var(--text-muted); align-self: center; margin-right: 4px;">Compare Model:</span>
+      <button class="btn active" id="btn-model-fp32" onclick="setModel('tflite_fp32')">FP32 TFLite</button>
+      <button class="btn" id="btn-model-w8a8-rep" onclick="setModel('tflite_w8a8_rep')">W8A8 Rep (6-sample)</button>
+      <button class="btn" id="btn-model-w8a8-smoke" onclick="setModel('tflite_w8a8_smoke')">W8A8 Smoke (4-sample)</button>
+      <button class="btn" id="btn-model-orig" onclick="setModel('orig')">Original B/W</button>
+    </div>
+
+    <div class="comparison-container">
+      <!-- Left: FP16 ONNX Reference -->
+      <div class="view-card">
+        <div class="view-header">
+          <span id="left-label">FP16 ONNX Reference</span>
+          <span class="badge accent">Baseline Anchor</span>
+        </div>
+        <div class="view-img-wrap">
+          <img id="img-left" src="sasa_onnx_fp16_final_merged.png" alt="FP16 ONNX Reference">
+        </div>
+      </div>
+
+      <!-- Right: Selected Candidate -->
+      <div class="view-card">
+        <div class="view-header">
+          <span id="right-label">FP32 TFLite</span>
+          <span class="badge" id="right-badge">PSNR: 62.52 dB</span>
+        </div>
+        <div class="view-img-wrap">
+          <img id="img-right" src="sasa_tflite_fp32_final_merged.png" alt="Selected Candidate Model">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Metrics Table Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>Numerical Verification Metrics (vs FP16 ONNX Reference)</span>
+      <span class="badge">Strict 3GB Container Cap</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Model Variant</th>
+            <th>Stage</th>
+            <th class="num-col">PSNR (dB)</th>
+            <th class="num-col">MAE</th>
+            <th class="num-col">Max Abs</th>
+            <th class="num-col">Mean</th>
+            <th class="num-col">Std</th>
+            <th class="num-col">Host Latency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- FP16 ONNX -->
+          <tr>
+            <td><strong>FP16 ONNX Ref</strong><br><span class="badge">Baseline</span></td>
+            <td>Raw Cropped<br>Final Merged</td>
+            <td class="num-col metric-val">Ref<br>Ref</td>
+            <td class="num-col">0.000<br>0.000</td>
+            <td class="num-col">0.000<br>0.000</td>
+            <td class="num-col">0.6289<br>0.6683</td>
+            <td class="num-col">0.3519<br>0.3482</td>
+            <td class="num-col">38.31s<br>(ORT CPU)</td>
+          </tr>
+          <!-- FP32 TFLite -->
+          <tr>
+            <td><strong>FP32 TFLite</strong><br><span class="badge accent">B6 INT32 Patched</span></td>
+            <td>Raw Cropped<br>Final Merged</td>
+            <td class="num-col metric-val" style="color: var(--success-text);">73.87 dB<br>62.52 dB</td>
+            <td class="num-col">1.35e-4<br>1.42e-4</td>
+            <td class="num-col">0.0034<br>0.0118</td>
+            <td class="num-col">0.6289<br>0.6683</td>
+            <td class="num-col">0.3519<br>0.3481</td>
+            <td class="num-col">12.24s<br>(XNNPACK)</td>
+          </tr>
+          <!-- W8A8 Rep -->
+          <tr>
+            <td><strong>W8A8 Rep TFLite</strong><br><span class="badge">6-Sample Calib</span></td>
+            <td>Raw Cropped<br>Final Merged</td>
+            <td class="num-col metric-val">33.47 dB<br>34.54 dB</td>
+            <td class="num-col">0.0129<br>0.0102</td>
+            <td class="num-col">0.2859<br>0.2745</td>
+            <td class="num-col">0.6308<br>0.6688</td>
+            <td class="num-col">0.3533<br>0.3501</td>
+            <td class="num-col">10.65s<br>(XNNPACK)</td>
+          </tr>
+          <!-- W8A8 Smoke -->
+          <tr>
+            <td><strong>W8A8 Smoke TFLite</strong><br><span class="badge">4-Sample Calib</span></td>
+            <td>Raw Cropped<br>Final Merged</td>
+            <td class="num-col metric-val">36.99 dB<br>40.09 dB</td>
+            <td class="num-col">0.0096<br>0.0063</td>
+            <td class="num-col">0.1541<br>0.1412</td>
+            <td class="num-col">0.6302<br>0.6687</td>
+            <td class="num-col">0.3519<br>0.3478</td>
+            <td class="num-col">11.20s<br>(XNNPACK)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pipeline Reproducibility Details Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>Pipeline Geometry & Reproducibility Hashes</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; font-size: 12px;">
+      <div>
+        <p style="margin-bottom: 4px; font-weight: 600; color: var(--text-heading);">Input Geometry (<code class="code-sm">sasa.png</code>):</p>
+        <ul style="padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
+          <li>Source Size: 1080 × 1535 (1,657,800 pixels)</li>
+          <li>Source SHA-256: <span class="code-sm">3757932132c7...441e9ee</span></li>
+          <li>Target Input: 576 × 832 (5 channels, NCHW)</li>
+          <li>Scale Factor: 0.533333</li>
+          <li>Content Dimensions: 576 × 819</li>
+          <li>Padding: Top = 6, Bottom = 7, Left = 0, Right = 0 (1.0f paper white)</li>
+          <li>Input Tensor SHA-256: <span class="code-sm">27e9e801608e...87e59c69f</span></li>
+        </ul>
+      </div>
+
+      <div>
+        <p style="margin-bottom: 4px; font-weight: 600; color: var(--text-heading);">Ink-Aware Chroma Merge:</p>
+        <ul style="padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
+          <li>Cap Threshold: ≤ 1,500,000 pixels</li>
+          <li>Shrink Factor: 0.951217</li>
+          <li>Merge Dimensions: 1027 × 1460</li>
+          <li>Color Space: kornia sRGB ↔ Lab D65 (<code class="code-sm">LineArtMerger</code> twin)</li>
+          <li>Ink Protection: smoothstep(0.12, 0.45) on Rec.601 gray</li>
+          <li>Shading Strength: 0.35</li>
+          <li>Scale-back: Bilinear upscale to 1080 × 1535</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 14px;">
+      <p style="margin-bottom: 4px; font-weight: 600; color: var(--text-heading);">Verified File Hashes (Final Merged):</p>
+      <div style="font-size: 11px; line-height: 1.7;">
+        <div>ONNX FP16: <span class="hash-val">104c7e3dbf932e11133887e61c04cdd4fbc13227314fa26546059f488d870312</span></div>
+        <div>FP32 TFLite: <span class="hash-val">21fa86f7769d6e4017ee8625c84c247c1d63666064afaa5abcb519f40fbaed8f</span></div>
+        <div>W8A8 Rep: <span class="hash-val">47c8d03a22ae0d8bf211ab748d0d10429e900f80ee581ff41861c641e46313cf</span></div>
+        <div>W8A8 Smoke: <span class="hash-val">af069c81b4e87d01c5280130732c0f2d69decdc21331027b2cfbbd3da264d999</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStage = 'merged'; // 'merged' or 'raw'
+    let currentModel = 'tflite_fp32';
+
+    const images = {
+      merged: {
+        left: { src: 'sasa_onnx_fp16_final_merged.png', label: 'FP16 ONNX Reference (Merged 1080×1535)' },
+        tflite_fp32: { src: 'sasa_tflite_fp32_final_merged.png', label: 'FP32 TFLite (Merged)', badge: 'PSNR: 62.52 dB' },
+        tflite_w8a8_rep: { src: 'sasa_tflite_w8a8_rep_final_merged.png', label: 'W8A8 Rep TFLite (Merged)', badge: 'PSNR: 34.54 dB' },
+        tflite_w8a8_smoke: { src: 'sasa_tflite_w8a8_smoke_final_merged.png', label: 'W8A8 Smoke TFLite (Merged)', badge: 'PSNR: 40.09 dB' },
+        orig: { src: 'sasa_original.png', label: 'Original Source (B/W 1080×1535)', badge: 'Input Asset' }
+      },
+      raw: {
+        left: { src: 'sasa_onnx_fp16_raw_cropped.png', label: 'FP16 ONNX Reference (Raw 576×819)' },
+        tflite_fp32: { src: 'sasa_tflite_fp32_raw_cropped.png', label: 'FP32 TFLite (Raw Cropped)', badge: 'PSNR: 73.87 dB' },
+        tflite_w8a8_rep: { src: 'sasa_tflite_w8a8_rep_raw_cropped.png', label: 'W8A8 Rep TFLite (Raw Cropped)', badge: 'PSNR: 33.47 dB' },
+        tflite_w8a8_smoke: { src: 'sasa_tflite_w8a8_smoke_raw_cropped.png', label: 'W8A8 Smoke TFLite (Raw Cropped)', badge: 'PSNR: 36.99 dB' },
+        orig: { src: 'sasa_original.png', label: 'Original Source (B/W 1080×1535)', badge: 'Input Asset' }
+      }
+    };
+
+    function updateView() {
+      const data = images[currentStage];
+      document.getElementById('img-left').src = data.left.src;
+      document.getElementById('left-label').innerText = data.left.label;
+
+      const sel = data[currentModel];
+      document.getElementById('img-right').src = sel.src;
+      document.getElementById('right-label').innerText = sel.label;
+      document.getElementById('right-badge').innerText = sel.badge;
+    }
+
+    function setStage(stage) {
+      currentStage = stage;
+      document.getElementById('btn-stage-merged').classList.toggle('active', stage === 'merged');
+      document.getElementById('btn-stage-raw').classList.toggle('active', stage === 'raw');
+      updateView();
+    }
+
+    function setModel(model) {
+      currentModel = model;
+      document.getElementById('btn-model-fp32').classList.toggle('active', model === 'tflite_fp32');
+      document.getElementById('btn-model-w8a8-rep').classList.toggle('active', model === 'tflite_w8a8_rep');
+      document.getElementById('btn-model-w8a8-smoke').classList.toggle('active', model === 'tflite_w8a8_smoke');
+      document.getElementById('btn-model-orig').classList.toggle('active', model === 'orig');
+      updateView();
+    }
+  </script>
+</body>
+</html>

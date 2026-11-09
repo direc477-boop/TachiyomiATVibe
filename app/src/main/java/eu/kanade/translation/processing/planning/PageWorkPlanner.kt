@@ -87,9 +87,14 @@ object PageWorkPlanner {
         val expected = input.expectedFingerprints
         val textless = page?.ocrStatus == StageStatus.TEXTLESS ||
             page?.isTextlessTerminal == true ||
-            // A colorize-only page is terminal: no reader-side rework unless
-            // explicitly forced.
-            page?.isColorizeOnlyComplete == true ||
+            // A colorize-only page is terminal for non-explicit flows ONLY
+            // when its source identity is verified: reuse requires matching
+            // fingerprint evidence, and identity-unavailable coloring is
+            // never asserted valid — an explicit translation then reworks
+            // the page (OCR/translate/render run).
+            page?.isColorizeOnlyComplete == true &&
+            page.sourceFingerprint != null &&
+            page.sourceFingerprint == input.sourceFingerprint ||
             artifact?.ocr?.status == ArtifactStageStatus.TEXTLESS
 
         val evidence = BatchStage.entries.associateWith { stage ->

@@ -204,7 +204,7 @@ internal class TranslationOverlayView @JvmOverloads constructor(
         val ssiv = imageView ?: return
         if (!ssiv.isReady || blocks.isEmpty() || pageWidth <= 0 || pageHeight <= 0) return
         val topLeft = ssiv.sourceToViewCoord(0f, 0f) ?: return
-        val bottomRight = ssiv.sourceToViewCoord(pageWidth.toFloat(), pageHeight.toFloat()) ?: return
+        val bottomRight = ssiv.sourceToViewCoord(ssiv.sWidth.toFloat(), ssiv.sHeight.toFloat()) ?: return
         val scaleX = (bottomRight.x - topLeft.x) / pageWidth
         val scaleY = (bottomRight.y - topLeft.y) / pageHeight
         if (scaleX <= 0f || scaleY <= 0f) return

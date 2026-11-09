@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,10 +26,12 @@ import eu.kanade.presentation.components.designsystem.SectionHeading
 import eu.kanade.presentation.components.designsystem.SelectionTile
 import eu.kanade.presentation.components.designsystem.SwitchCard
 import eu.kanade.presentation.translation.colorizationModelOptions
+import eu.kanade.presentation.translation.colorizationQualityOptions
 import eu.kanade.presentation.translation.neuralInpaintOptions
 import eu.kanade.presentation.translation.ocrModelOptions
 import eu.kanade.tachiyomi.ui.reader.TranslationSettingsState
 import tachiyomi.domain.translation.ColorizationModel
+import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.OcrModel
 import tachiyomi.i18n.at.ATMR
@@ -46,7 +50,12 @@ internal fun TranslationVisionSection(
     onTranslationInpaintingModeChange: (String) -> Unit,
     onTranslationInpaintingNeuralModelChange: (NeuralInpaintModel) -> Unit,
     onColorizationEnabledChange: (Boolean) -> Unit,
+    onAutoColorizeChange: (Boolean) -> Unit,
     onColorizationModelChange: (ColorizationModel) -> Unit,
+    onColorizationQualityChange: (ColorizationQuality) -> Unit,
+    onUpscalingEnabledChange: (Boolean) -> Unit,
+    onColorizeChapterClick: () -> Unit,
+    onColorizePageClick: () -> Unit,
 ) {
     SectionHeading(title = stringResource(ATMR.strings.reader_translation_section_vision))
 
@@ -145,13 +154,66 @@ internal fun TranslationVisionSection(
             exit = shrinkVertically() + fadeOut(),
         ) {
             val colorizationOptions = colorizationModelOptions()
-            SearchableConfigSelectorBox(
-                selectedLabel = colorizationOptions.firstOrNull { it.value == state.colorizationModel }?.label
-                    ?: state.colorizationModel.name,
-                options = colorizationOptions,
-                onSelect = onColorizationModelChange,
-                placeholder = stringResource(ATMR.strings.pref_colorization_model),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SwitchCard(
+                    icon = Icons.Outlined.Palette,
+                    title = stringResource(ATMR.strings.pref_auto_colorize),
+                    subtitle = stringResource(ATMR.strings.pref_auto_colorize_summary),
+                    checked = state.autoColorize,
+                    onCheckedChange = onAutoColorizeChange,
+                )
+                SearchableConfigSelectorBox(
+                    selectedLabel = colorizationOptions.firstOrNull { it.value == state.colorizationModel }?.label
+                        ?: state.colorizationModel.name,
+                    options = colorizationOptions,
+                    onSelect = onColorizationModelChange,
+                    placeholder = stringResource(ATMR.strings.pref_colorization_model),
+                )
+                if (state.colorizationModel == ColorizationModel.MANGA_COLORIZATION_V2_INT8) {
+                    val qualityOptions = colorizationQualityOptions()
+                    Text(text = stringResource(ATMR.strings.pref_colorization_quality))
+                    SearchableConfigSelectorBox(
+                        selectedLabel = qualityOptions.firstOrNull { it.value == state.colorizationQuality }?.label
+                            ?: state.colorizationQuality.name,
+                        options = qualityOptions,
+                        onSelect = onColorizationQualityChange,
+                        placeholder = stringResource(ATMR.strings.pref_colorization_quality),
+                    )
+                }
+            }
         }
+
+        // Page-scope and chapter-scope actions, always visible so the entry
+        // points and their preconditions stay discoverable even with
+        // colorization switched off.
+        TranslationActionRow(
+            icon = Icons.Outlined.Palette,
+            title = stringResource(ATMR.strings.reader_colorize_page),
+            subtitle = stringResource(ATMR.strings.reader_colorize_page_summary),
+            onClick = onColorizePageClick,
+        )
+        TranslationActionRow(
+            icon = Icons.Outlined.Palette,
+            title = stringResource(ATMR.strings.reader_colorize_chapter),
+            subtitle = stringResource(ATMR.strings.reader_colorize_summary),
+            onClick = onColorizeChapterClick,
+        )
+    }
+
+    SectionHeading(title = stringResource(ATMR.strings.pref_upscaling_title))
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SwitchCard(
+            icon = Icons.Outlined.AutoAwesome,
+            title = stringResource(ATMR.strings.pref_upscaling_enabled),
+            subtitle = stringResource(ATMR.strings.pref_upscaling_enabled_summary),
+            checked = state.upscalingEnabled,
+            onCheckedChange = onUpscalingEnabledChange,
+        )
     }
 }

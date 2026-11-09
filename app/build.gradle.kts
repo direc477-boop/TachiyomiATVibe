@@ -1,8 +1,12 @@
 @file:Suppress("ChromeOsAbiSupport")
 
+import com.android.build.api.artifact.SingleArtifact
 import mihon.buildlogic.getBuildTime
 import mihon.buildlogic.getCommitCount
 import mihon.buildlogic.getGitSha
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 
 plugins {
     id("mihon.android.application")
@@ -545,6 +549,7 @@ dependencies {
     implementation(libs.onnxruntime.android)
     implementation(libs.litert)
     implementation(libs.litert.gpu)
+    implementation(libs.litert.npu.qualcomm)
     implementation(libs.jtokkit)
     implementation(libs.opencv)
 }
@@ -567,10 +572,437 @@ configurations.all {
 // Model binaries are not tracked in Git; every APK packages them from
 // app/src/main/assets/models. Provision them automatically so a fresh clone
 // or worktree never ships an APK that silently misses translation models.
+val mcv2GpuModelPath = providers.gradleProperty("models.mcv2.gpu")
+val mcv2GpuAssetDirectory = layout.buildDirectory.dir("generated/mcv2-debug-assets")
+android.sourceSets.getByName("debug").assets.srcDir(mcv2GpuAssetDirectory)
+
+val stageMcv2GpuModel by tasks.registering {
+    group = "build setup"
+    description = "Stages a local MCV2 LiteRT model into debug APK assets (-Pmodels.mcv2.gpu=<file>)."
+    doLast {
+        val destination = mcv2GpuAssetDirectory.get().file("models/coloring/manga_colorize_gpu_fp32.tflite").asFile
+        val configuredPath = mcv2GpuModelPath.orNull
+        if (configuredPath == null) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale MCV2 LiteRT debug asset: ${destination.absolutePath}")
+            }
+            logger.lifecycle("[mcv2] no local LiteRT graph configured; removed any stale debug asset")
+            return@doLast
+        }
+
+        val source = rootProject.file(configuredPath)
+        if (!source.isFile || source.length() == 0L) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale MCV2 LiteRT debug asset: ${destination.absolutePath}")
+            }
+            throw GradleException("MCV2 LiteRT model does not exist or is empty: ${source.absolutePath}")
+        }
+        destination.parentFile.mkdirs()
+        if (source.canonicalFile != destination.canonicalFile) {
+            source.copyTo(destination, overwrite = true)
+        }
+        logger.lifecycle("[mcv2] staged local LiteRT model for debug APK: ${destination.absolutePath}")
+    }
+}
+
+val qnnLibraryHashes = linkedMapOf(
+    "libQnnHtp.so" to "09e930b6af975bae23bcf6965ac2ce60f6b999aff37cb7eabe9b4d7c1bc3f264",
+    "libQnnSystem.so" to "b30bd9880dc48f6c5349185a7d45b326f8a064b10072e60094354fa23d9a2027",
+    "libQnnHtpV75Stub.so" to "8be2bf0b0c6839d3e3bf9d8435e9b92d3fde0ccdea343d89960d75285ad28dab",
+    "libQnnHtpV75Skel.so" to "2f6cfe5aae553d8ec88b6741bf8598a557375eacfc58056c2667fc43fda64f6a",
+)
+
+fun entrySha256(zip: ZipFile, entry: ZipEntry): String {
+    val stream = zip.getInputStream(entry)
+    try {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            val count = stream.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    } finally {
+        stream.close()
+    }
+}
+
+fun verifyAsset(apkName: String, zip: ZipFile, relativePath: String, expectedSha256: String, problems: MutableList<String>) {
+    val asset = zip.getEntry("assets/$relativePath")
+    if (asset == null) {
+        problems += "$apkName: staged artifact missing (assets/$relativePath)"
+    } else {
+        val hash = entrySha256(zip, asset)
+        if (hash != expectedSha256) {
+            problems += "$apkName: assets/$relativePath is $hash, expected $expectedSha256"
+        }
+    }
+}
+
+// TachiyomiAT: the experimental SM8650 NPU route stages its artifact and QNN
+// libraries from local files (-Pmodels.mcv2.npu / -Pmodels.mcv2.npu.libs), each
+// byte-verified against the device-validated handoff so bad staging fails the build.
+val mcv2NpuModelPath = providers.gradleProperty("models.mcv2.npu")
+val mcv2NpuW8a8ModelPath = providers.gradleProperty("models.mcv2.npu.w8a8")
+val upscalingNpuModelPath = providers.gradleProperty("models.upscaling.npu")
+val mcv2NpuLibraryDirectoryPath = providers.gradleProperty("models.mcv2.npu.libs")
+val mcv2NpuAssetDirectory = layout.buildDirectory.dir("generated/mcv2-npu-debug-assets")
+val mcv2NpuJniLibsDirectory = layout.buildDirectory.dir("generated/mcv2-npu-jniLibs")
+android.sourceSets.getByName("debug").assets.srcDir(mcv2NpuAssetDirectory)
+android.sourceSets.getByName("debug").jniLibs.srcDir(mcv2NpuJniLibsDirectory)
+
+val mcv2NpuArtifactSha256 = "d3d26e5e1af43213a8b6d9a9cca23b30e1f432e5f2dbf02398ef31199a7ff1f4"
+val mcv2NpuArtifactBytes = 79_446_056L
+val mcv2NpuAssetRelativePath = "models/coloring/manga_colorize_npu_sm8650_fp32.tflite"
+
+val mcv2NpuW8a8ArtifactSha256 = "d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9"
+val mcv2NpuW8a8ArtifactBytes = 55_615_832L
+val mcv2NpuW8a8AssetRelativePath = "models/coloring/manga_colorize_npu_sm8650_w8a8.tflite"
+
+val upscalingNpuArtifactSha256 = "4cf4ba774f2cae4e998ab1989a5947b3dbdc920ab24ce94c10aaebe73b90e331"
+val upscalingNpuArtifactBytes = 1_050_928L
+val upscalingNpuAssetRelativePath = "models/upscaling/quicksrnetlarge_sm8650_float_apply_plugin.tflite"
+
+val mangaLightNpuModelPath = providers.gradleProperty("models.mangaLight.npu")
+val mangaLightHybridModelsDir = providers.gradleProperty("models.mangaLight.hybrid.dir")
+val mangaLightNpuArtifactSha256 = "0e4e38dc7f1c319728722c75705e9e948eebca72261191f5629d59d1ab962737"
+val mangaLightNpuArtifactBytes = 115_000_872L
+val mangaLightNpuAssetRelativePath = "models/coloring/manga_light_colorizer_npu_sm8650_fp32.tflite"
+
+val mcv2NpuLibraries = qnnLibraryHashes
+val mcv2NpuStagingEnabled = mcv2NpuModelPath.isPresent ||
+    mcv2NpuW8a8ModelPath.isPresent ||
+    upscalingNpuModelPath.isPresent ||
+    mangaLightNpuModelPath.isPresent ||
+    mangaLightHybridModelsDir.isPresent ||
+    mcv2NpuLibraryDirectoryPath.isPresent
+
+fun sha256Hex(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+val stageMcv2NpuModel by tasks.registering {
+    group = "build setup"
+    description = "Stages the SM8650 NPU MCV2 FP32 artifact into debug APK assets (-Pmodels.mcv2.npu=<file>), " +
+        "verifying the device-validated hash."
+    doLast {
+        val destination = mcv2NpuAssetDirectory.get().file(mcv2NpuAssetRelativePath).asFile
+        val configuredPath = mcv2NpuModelPath.orNull
+        if (configuredPath == null) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale MCV2 NPU debug asset: ${destination.absolutePath}")
+            }
+            logger.lifecycle("[mcv2] no local NPU artifact configured; removed any stale debug asset")
+            return@doLast
+        }
+
+        val source = rootProject.file(configuredPath)
+        if (!source.isFile || source.length() != mcv2NpuArtifactBytes) {
+            throw GradleException(
+                "MCV2 NPU artifact missing or wrong size " +
+                    "(${if (source.isFile) "${source.length()} bytes" else "absent"}, expected $mcv2NpuArtifactBytes): " +
+                    source.absolutePath,
+            )
+        }
+        val hash = sha256Hex(source)
+        if (hash != mcv2NpuArtifactSha256) {
+            throw GradleException(
+                "MCV2 NPU artifact hash mismatch ($hash); expected the device-validated " +
+                    "apply_plugin build $mcv2NpuArtifactSha256",
+            )
+        }
+        destination.parentFile.mkdirs()
+        if (source.canonicalFile != destination.canonicalFile) {
+            source.copyTo(destination, overwrite = true)
+        }
+        logger.lifecycle("[mcv2] staged SM8650 NPU artifact for debug APK: ${destination.absolutePath}")
+    }
+}
+
+val stageMcv2NpuW8a8Model by tasks.registering {
+    group = "build setup"
+    description = "Stages the SM8650 NPU MCV2 W8A8 artifact into debug APK assets (-Pmodels.mcv2.npu.w8a8=<file>), " +
+        "verifying the cross-series calibrated artifact hash."
+    doLast {
+        val destination = mcv2NpuAssetDirectory.get().file(mcv2NpuW8a8AssetRelativePath).asFile
+        val configuredPath = mcv2NpuW8a8ModelPath.orNull
+        if (configuredPath == null) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale MCV2 NPU W8A8 debug asset: ${destination.absolutePath}")
+            }
+            logger.lifecycle("[mcv2] no local NPU W8A8 artifact configured; removed any stale debug asset")
+            return@doLast
+        }
+
+        val source = rootProject.file(configuredPath)
+        if (!source.isFile || source.length() != mcv2NpuW8a8ArtifactBytes) {
+            throw GradleException(
+                "MCV2 NPU W8A8 artifact missing or wrong size " +
+                    "(${if (source.isFile) "${source.length()} bytes" else "absent"}, expected $mcv2NpuW8a8ArtifactBytes): " +
+                    source.absolutePath,
+            )
+        }
+        val hash = sha256Hex(source)
+        if (hash != mcv2NpuW8a8ArtifactSha256) {
+            throw GradleException(
+                "MCV2 NPU W8A8 artifact hash mismatch ($hash); expected the cross-series calibrated " +
+                    "apply_plugin build $mcv2NpuW8a8ArtifactSha256",
+            )
+        }
+        destination.parentFile.mkdirs()
+        if (source.canonicalFile != destination.canonicalFile) {
+            source.copyTo(destination, overwrite = true)
+        }
+        logger.lifecycle("[mcv2] staged SM8650 NPU W8A8 artifact for debug APK: ${destination.absolutePath}")
+    }
+}
+
+val stageQuickSRNetNpuModel by tasks.registering {
+    group = "build setup"
+    description = "Stages the SM8650 QuickSRNetLarge upscaling artifact into debug APK assets (-Pmodels.upscaling.npu=<file>), " +
+        "verifying the compiled hash."
+    doLast {
+        val destination = mcv2NpuAssetDirectory.get().file(upscalingNpuAssetRelativePath).asFile
+        val configuredPath = upscalingNpuModelPath.orNull
+        if (configuredPath == null) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale QuickSRNet debug asset: ${destination.absolutePath}")
+            }
+            logger.lifecycle("[quicksrnet] no local QuickSRNet artifact configured; removed any stale debug asset")
+            return@doLast
+        }
+
+        val source = rootProject.file(configuredPath)
+        if (!source.isFile || source.length() != upscalingNpuArtifactBytes) {
+            throw GradleException(
+                "QuickSRNet artifact missing or wrong size " +
+                    "(${if (source.isFile) "${source.length()} bytes" else "absent"}, expected $upscalingNpuArtifactBytes): " +
+                    source.absolutePath,
+            )
+        }
+        val hash = sha256Hex(source)
+        if (hash != upscalingNpuArtifactSha256) {
+            throw GradleException(
+                "QuickSRNet artifact hash mismatch ($hash); expected the compiled " +
+                    "apply_plugin build $upscalingNpuArtifactSha256",
+            )
+        }
+        destination.parentFile.mkdirs()
+        if (source.canonicalFile != destination.canonicalFile) {
+            source.copyTo(destination, overwrite = true)
+        }
+        logger.lifecycle("[quicksrnet] staged SM8650 QuickSRNet artifact for debug APK: ${destination.absolutePath}")
+    }
+}
+
+val stageMangaLightNpuModel by tasks.registering {
+    group = "build setup"
+    description = "Stages the SM8650 Manga Light 512×512 FP32 artifact into debug APK assets (-Pmodels.mangaLight.npu=<file>), " +
+        "verifying the trial-compiled artifact hash."
+    doLast {
+        val destination = mcv2NpuAssetDirectory.get().file(mangaLightNpuAssetRelativePath).asFile
+        val configuredPath = mangaLightNpuModelPath.orNull
+        if (configuredPath == null) {
+            if (destination.exists() && !destination.delete()) {
+                throw GradleException("Could not remove stale Manga Light NPU debug asset: ${destination.absolutePath}")
+            }
+            logger.lifecycle("[mangaLight] no local Manga Light NPU artifact configured; removed any stale debug asset")
+            return@doLast
+        }
+
+        val source = rootProject.file(configuredPath)
+        if (!source.isFile || source.length() != mangaLightNpuArtifactBytes) {
+            throw GradleException(
+                "Manga Light NPU artifact missing or wrong size " +
+                    "(${if (source.isFile) "${source.length()} bytes" else "absent"}, expected $mangaLightNpuArtifactBytes): " +
+                    source.absolutePath,
+            )
+        }
+        val hash = sha256Hex(source)
+        if (hash != mangaLightNpuArtifactSha256) {
+            throw GradleException(
+                "Manga Light NPU artifact hash mismatch ($hash); expected the trial-compiled " +
+                    "apply_plugin build $mangaLightNpuArtifactSha256",
+            )
+        }
+        destination.parentFile.mkdirs()
+        if (source.canonicalFile != destination.canonicalFile) {
+            source.copyTo(destination, overwrite = true)
+        }
+        logger.lifecycle("[mangaLight] staged SM8650 Manga Light artifact for debug APK: ${destination.absolutePath}")
+    }
+}
+
+val stageMangaLightHybridModels by tasks.registering {
+    group = "build setup"
+    doLast {
+        val destination = mcv2NpuAssetDirectory.get().dir("models/coloring/manga-light-hybrid").asFile
+        val artifacts = mapOf(
+            "sam0.tflite" to (36_312_536L to "06a0436722c853e54c23a3b810a39f7bb47b77a33e74cbbd1763aa7cffe8253f"),
+            "sam1.tflite" to (32_891_512L to "7da91f7f4d00abd4110e6da9583897d833d0c65f60e4e341baca74896c5bc7c7"),
+            "sam2.tflite" to (23_498_360L to "cc0b844f39f6e5a1ca8faa6742102947ba904889cb725c19b49a9cb7ca2aeed0"),
+            "sam3.tflite" to (52_386_032L to "2f9deffb67b09f4d0d328c287c01e31ddfe83b30c06daf03bb26a1b5147ec382"),
+            "generator.tflite" to (179_058_976L to "49f13c8d8dd8f543ebed6a3b76ee60fcf3195680ec9acd93d4fe83e3cfcb72da"),
+        )
+        val directory = mangaLightHybridModelsDir.orNull
+        if (directory == null) {
+            artifacts.keys.forEach { name ->
+                val file = File(destination, name)
+                if (file.exists() && !file.delete()) throw GradleException("Cannot remove stale model: $file")
+            }
+            return@doLast
+        }
+        destination.mkdirs()
+        artifacts.forEach { (name, expected) ->
+            val source = File(rootProject.file(directory), name)
+            if (!source.isFile || source.length() != expected.first || sha256Hex(source) != expected.second) {
+                throw GradleException("Manga Light hybrid artifact is missing or invalid: $source")
+            }
+            val target = File(destination, name)
+            if (source.canonicalFile != target.canonicalFile) source.copyTo(target, overwrite = true)
+        }
+    }
+}
+
+val stageMcv2NpuLibraries by tasks.registering {
+    group = "build setup"
+    description = "Stages the four Qualcomm dispatch libraries into debug jniLibs " +
+        "(-Pmodels.mcv2.npu.libs=<dir>), verifying device-validated hashes."
+    doLast {
+        val arm64 = mcv2NpuJniLibsDirectory.get().dir("arm64-v8a").asFile
+        val configuredPath = mcv2NpuLibraryDirectoryPath.orNull
+        if (configuredPath == null) {
+            if (arm64.exists() && !arm64.deleteRecursively()) {
+                throw GradleException("Could not remove stale MCV2 NPU jniLibs: ${arm64.absolutePath}")
+            }
+            logger.lifecycle("[mcv2] no local QNN library directory configured; removed any stale debug jniLibs")
+            return@doLast
+        }
+
+        val sourceDir = rootProject.file(configuredPath)
+        arm64.mkdirs()
+        for ((name, expectedSha256) in mcv2NpuLibraries) {
+            val source = File(sourceDir, name)
+            if (!source.isFile) {
+                throw GradleException("Qualcomm dispatch library missing: ${source.absolutePath}")
+            }
+            val hash = sha256Hex(source)
+            if (hash != expectedSha256) {
+                throw GradleException(
+                    "Qualcomm dispatch library hash mismatch for $name ($hash); " +
+                        "expected the device-validated $expectedSha256",
+                )
+            }
+            source.copyTo(File(arm64, name), overwrite = true)
+        }
+        logger.lifecycle("[mcv2] staged Qualcomm dispatch libraries for debug APK: ${arm64.absolutePath}")
+    }
+}
+
+// TachiyomiAT: the guard runs on every assemble; enforcement only applies to
+// NPU-staged debug variants, so ordinary builds (including release, where the
+// ORT transit ships its own QNN libs) always pass.
+androidComponents {
+    onVariants { variant ->
+        val capitalized = variant.name.replaceFirstChar { it.uppercaseChar() }
+        val npuEnforced = mcv2NpuStagingEnabled && variant.buildType == "debug"
+        val apkDirProvider = variant.artifacts.get(SingleArtifact.APK)
+        val verifyMcv2NpuApkBytes = tasks.register("verify${capitalized}Mcv2NpuApkBytes") {
+            inputs.dir(apkDirProvider)
+            doLast {
+                val apkDir = apkDirProvider.get().asFile
+                val apks = apkDir
+                    .listFiles { file: File -> file.isFile && file.name.endsWith(".apk") }
+                    .orEmpty()
+                    .sortedBy { it.name }
+                val problems = mutableListOf<String>()
+                var enforcedApks = 0
+                for (apk in apks) {
+                    ZipFile(apk).use { zip ->
+                        if (npuEnforced) {
+                            enforcedApks += 1
+                            if (mcv2NpuModelPath.isPresent) {
+                                verifyAsset(apk.name, zip, mcv2NpuAssetRelativePath, mcv2NpuArtifactSha256, problems)
+                            }
+                            if (mcv2NpuW8a8ModelPath.isPresent) {
+                                verifyAsset(apk.name, zip, mcv2NpuW8a8AssetRelativePath, mcv2NpuW8a8ArtifactSha256, problems)
+                            }
+                            if (upscalingNpuModelPath.isPresent) {
+                                verifyAsset(apk.name, zip, upscalingNpuAssetRelativePath, upscalingNpuArtifactSha256, problems)
+                            }
+                            if (mangaLightNpuModelPath.isPresent) {
+                                verifyAsset(apk.name, zip, mangaLightNpuAssetRelativePath, mangaLightNpuArtifactSha256, problems)
+                            }
+                            val carriesArm64Libs = zip.entries().asSequence().any { it.name.startsWith("lib/arm64-v8a/") }
+                            if (carriesArm64Libs) {
+                                for ((name, expected) in qnnLibraryHashes) {
+                                    val entry = zip.getEntry("lib/arm64-v8a/$name")
+                                    if (entry == null) {
+                                        problems += "${apk.name}: missing $name"
+                                        continue
+                                    }
+                                    val hash = entrySha256(zip, entry)
+                                    if (hash != expected) {
+                                        problems += "${apk.name}: $name is $hash, expected device-tested $expected"
+                                    }
+                                }
+                            }
+                        } else {
+                            if (zip.getEntry("assets/$mcv2NpuAssetRelativePath") != null) {
+                                problems += "${apk.name}: stale staged NPU artifact present in a non-NPU build"
+                            }
+                            if (zip.getEntry("assets/$mcv2NpuW8a8AssetRelativePath") != null) {
+                                problems += "${apk.name}: stale staged NPU W8A8 artifact present in a non-NPU build"
+                            }
+                            if (zip.getEntry("assets/$upscalingNpuAssetRelativePath") != null) {
+                                problems += "${apk.name}: stale staged QuickSRNet artifact present in a non-NPU build"
+                            }
+                            if (zip.getEntry("assets/$mangaLightNpuAssetRelativePath") != null) {
+                                problems += "${apk.name}: stale staged Manga Light artifact present in a non-NPU build"
+                            }
+                            for ((name, expected) in qnnLibraryHashes) {
+                                val entry = zip.getEntry("lib/arm64-v8a/$name")
+                                if (entry != null && entrySha256(zip, entry) == expected) {
+                                    problems += "${apk.name}: stale staged $name bytes present in a non-NPU build"
+                                }
+                            }
+                        }
+                    }
+                }
+                if (problems.isNotEmpty()) {
+                    throw GradleException(
+                        "Packaged NPU content violates the device-tested contract:\n" +
+                            problems.joinToString("\n"),
+                    )
+                }
+                if (npuEnforced) {
+                    logger.lifecycle(
+                        "[mcv2] verified $enforcedApks APK(s): staged NPU artifact and QNN libraries match the device-tested hashes",
+                    )
+                } else {
+                    logger.lifecycle("[mcv2] NPU staging not enabled; APK byte guard idle")
+                }
+            }
+        }
+        tasks.matching { it.name == "assemble$capitalized" }.configureEach {
+            finalizedBy(verifyMcv2NpuApkBytes)
+        }
+    }
+}
+
 val fetchModels by tasks.registering {
     group = "build setup"
-    description = "Provisions pinned model assets via scripts/fetch_models.py (-Pmodels.skip to opt out)."
-    onlyIf { !providers.gradleProperty("models.skip").isPresent }
+    description = "Provisions or verifies every model asset in scripts/models.manifest."
     doLast {
         val script = rootProject.file("scripts/fetch_models.py")
         val interpreters = if (org.gradle.internal.os.OperatingSystem.current().isWindows) {
@@ -586,18 +1018,26 @@ val fetchModels by tasks.registering {
                 }
             }.isSuccess
         } ?: throw GradleException(
-            "Model provisioning needs Python 3. Install it, run scripts/fetch_models.py manually, " +
-                "or pass -Pmodels.skip=true to build without translation models.",
+            "Model provisioning needs Python 3. Install it and the required converter packages, " +
+                "then retry the APK build.",
         )
         exec {
-            commandLine(python + script.absolutePath)
+            val verifyOnly = providers.gradleProperty("models.skip").orNull
+                ?.let { it.isEmpty() || it.toBoolean() }
+                ?: false
+            commandLine(python + script.absolutePath + if (verifyOnly) listOf("--verify-only") else emptyList())
             workingDir(rootDir)
         }
     }
 }
 
 tasks.configureEach {
-    if (name.startsWith("merge") && name.endsWith("Assets")) {
+    if (name.startsWith("merge") && name.endsWith("DebugAssets")) {
+        dependsOn(fetchModels, stageMcv2GpuModel, stageMcv2NpuModel, stageMcv2NpuW8a8Model, stageQuickSRNetNpuModel, stageMangaLightNpuModel, stageMangaLightHybridModels)
+    } else if (name.startsWith("merge") && name.endsWith("DebugJniLibFolders")) {
+        // Debug-only so release merges stop wiping the staged lib inputs (review finding F1).
+        dependsOn(stageMcv2NpuLibraries)
+    } else if (name.startsWith("merge") && name.endsWith("Assets")) {
         dependsOn(fetchModels)
     }
 }

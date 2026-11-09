@@ -5,6 +5,7 @@ import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.model.PageTranslation
 import eu.kanade.translation.model.PageTranslationView
 import eu.kanade.translation.model.PublishedPageTranslation
+import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.StageFingerprints
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.TranslationBlock
@@ -503,6 +504,19 @@ class ChapterTranslationStore internal constructor(
         description: String,
         update: (PageTranslation?) -> PageTranslation,
     ): PatchResult = pageMutations.updatePageFromCurrentSnapshot(pageKey, description, update)
+
+    /**
+     * Publishes an in-flight COLORING entry so holders (dim + spinner via
+     * isStageRunning) and the batch tracker see live state. Committed display
+     * is untouched and real OCR data is never clobbered.
+     */
+    suspend fun markColorizeRunning(pageKey: String, description: String): PatchResult =
+        updatePageFromCurrentSnapshot(pageKey, description) { current ->
+            (current ?: PageTranslation(sourceFileName = pageKey)).apply {
+                coloringStatus = StageStatus.RUNNING
+                updatedAt = System.currentTimeMillis()
+            }
+        }
 
     internal suspend fun patchBlock(
         pageKey: String,

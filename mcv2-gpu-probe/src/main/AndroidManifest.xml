@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Foreground-service run ownership (r6): stage/status notification,
+         bounded PARTIAL wakelock, explicit failure states. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- extractNativeLibs: QNN HTP backend must find libQnnHtpV75Skel.so as a real
+         file on disk (dsp_skel_dir discovery), which APK-embedded libs do not provide. -->
+    <application android:label="MCV2 GPU Probe" android:icon="@android:drawable/ic_menu_info_details" android:extractNativeLibs="true">
+        <activity
+            android:name=".Mcv2GpuParityActivity"
+            android:exported="true" />
+        <service
+            android:name=".Mcv2ParityService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

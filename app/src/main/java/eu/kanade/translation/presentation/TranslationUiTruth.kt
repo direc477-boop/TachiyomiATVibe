@@ -722,7 +722,11 @@ object TranslationUiTruth {
         val paused = snapshot.state == Translation.State.PAUSED || snapshot.pauseReason != null
         if (!paused) return null
         val reason = snapshot.pauseReason?.takeIf { it.isNotBlank() }
-            ?: "Provider work is temporarily unavailable"
+            ?: if (snapshot.pausedForCharging) {
+                "waiting for charging"
+            } else {
+                "Provider work is temporarily unavailable"
+            }
         val next = snapshot.nextEligibleRetryAtEpochMs?.let { retryAt ->
             DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(retryAt))
         }
@@ -777,7 +781,12 @@ object TranslationUiTruth {
                 // and no failed/paused/aborted outcome may claim completion.
                 isCompletedOutcome(snapshot) -> BatchStatusLine(
                     kind = BatchStatusLineKind.COMPLETED,
-                    fallback = "All pages translated and ready to read",
+                    // A colorize-only run never claims translation truth.
+                    fallback = if (snapshot.colorizeOnly) {
+                        "All pages colored and ready to read"
+                    } else {
+                        "All pages translated and ready to read"
+                    },
                 )
                 else -> BatchStatusLine(
                     kind = BatchStatusLineKind.ATTENTION_REQUIRED,
@@ -881,8 +890,10 @@ object TranslationUiTruth {
         val isPaused = snapshot.state == Translation.State.PAUSED || snapshot.pauseReason != null
         val isVisible = request != null ||
             isPaused ||
+            snapshot.aborted ||
             snapshot.batchPhase != TranslationBatchPhase.IDLE
         if (!isVisible) return null
+        val coloring = snapshot.colorizeOnly
         return when {
             request?.phase == TranslationRequestPhase.STARTING -> BatchStatusLine(
                 kind = BatchStatusLineKind.REQUEST_STARTING,
@@ -900,9 +911,27 @@ object TranslationUiTruth {
                 kind = BatchStatusLineKind.REQUEST_DOWNLOAD_FAILED,
                 fallback = "Download failed — retry to continue",
             )
+            snapshot.aborted -> BatchStatusLine(
+                kind = BatchStatusLineKind.ATTENTION_REQUIRED,
+                fallback = if (coloring) {
+                    "Colorization failed — " + snapshot.abortedReason.orEmpty()
+                        .ifBlank { "retry the chapter" }.take(120)
+                } else {
+                    "Translation failed — " + snapshot.abortedReason.orEmpty()
+                        .ifBlank { "retry the chapter" }.take(120)
+                },
+            )
+            isPaused && snapshot.pausedForCharging -> BatchStatusLine(
+                kind = BatchStatusLineKind.PAUSED,
+                fallback = if (coloring) {
+                    "Colorization paused — waiting for charging"
+                } else {
+                    "Translation paused — waiting for charging"
+                },
+            )
             isPaused -> BatchStatusLine(
                 kind = BatchStatusLineKind.PAUSED,
-                fallback = "Translation paused",
+                fallback = if (coloring) "Colorization paused" else "Translation paused",
             )
             snapshot.batchPhase == TranslationBatchPhase.REBUILDING -> BatchStatusLine(
                 kind = BatchStatusLineKind.REBUILDING,
@@ -919,11 +948,15 @@ object TranslationUiTruth {
             snapshot.totalPages > 0 -> BatchStatusLine(
                 kind = BatchStatusLineKind.FIRST_PASS_PAGES,
                 formatArgs = listOf(snapshot.donePages, snapshot.totalPages),
-                fallback = "Batch ${snapshot.donePages}/${snapshot.totalPages} pages",
+                fallback = if (coloring) {
+                    "Coloring ${snapshot.donePages}/${snapshot.totalPages} pages…"
+                } else {
+                    "Batch ${snapshot.donePages}/${snapshot.totalPages} pages"
+                },
             )
             else -> BatchStatusLine(
                 kind = BatchStatusLineKind.REQUEST_PREPARING,
-                fallback = "Preparing translation batch",
+                fallback = if (coloring) "Preparing colorization…" else "Preparing translation batch",
             )
         }
     }

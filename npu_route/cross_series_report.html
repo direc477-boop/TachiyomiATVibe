@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCV2 576×832 Cross-Series Recalibration & Generalization Report</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-heading: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --warning-bg: #272115;
+      --warning-border: #9e6a03;
+      --warning-text: #f2cc60;
+      --success-bg: #11271b;
+      --success-border: #238636;
+      --success-text: #3fb950;
+      --badge-bg: #21262d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 16px;
+      font-size: 14px;
+    }
+    h1, h2, h3 { color: var(--text-heading); font-weight: 600; margin-bottom: 8px; }
+    h1 { font-size: 1.35rem; }
+    p { margin-bottom: 12px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 1.05rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--badge-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .badge.green {
+      background: rgba(46, 160, 67, 0.15);
+      border-color: rgba(46, 160, 67, 0.4);
+      color: var(--success-text);
+    }
+    .badge.accent {
+      background: rgba(56, 139, 253, 0.15);
+      border-color: rgba(56, 139, 253, 0.4);
+      color: var(--accent);
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    tr:hover td { background: rgba(255, 255, 255, 0.03); }
+    .num-col { text-align: right; }
+    .code-sm {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .metric-val {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-weight: 600;
+      color: var(--text-heading);
+    }
+    .hash-val {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>MCV2 576×832 Cross-Series Recalibration & Generalization</h1>
+  <p style="color: var(--text-muted);">
+    Evaluation on 99-page multi-series corpus (4 series) with proportional cross-series held-out validation (20 pages across all 4 series + held-out <code>sasa.png</code>). Strict 3GB container caps / 2 threads observed; zero visual image inspection.
+  </p>
+
+  <!-- Summary Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>Key Calibration & Parity Findings</span>
+      <span class="badge green">SM8650 AOT Offload: 970/970 ops</span>
+    </div>
+    <div class="grid-2" style="font-size: 13px;">
+      <div>
+        <ul style="padding-left: 18px; line-height: 1.6; color: var(--text);">
+          <li><strong>Winning Candidate:</strong> <code>cross_mixed_w8a8</code> (83 samples: 4 synthetic + 79 manga pages across all 4 series) achieved <strong>35.60 dB</strong> mean PSNR across all 20 cross-series held-out pages.</li>
+          <li><strong>Tint Suppression:</strong> The user-reported cool/pale tint was dramatically suppressed. Signed mean RGB shifts dropped to <strong>R=+0.00016, G=-0.00027, B=+0.00394</strong> (vs earlier W8A8 B=+0.01546 blue shift).</li>
+          <li><strong>Out-of-Distribution Generalization:</strong> New series achieved up to <strong>38.65 dB</strong> mean PSNR (shinda-ishii) and <strong>38.23 dB</strong> (musket-girls).</li>
+        </ul>
+      </div>
+      <div>
+        <ul style="padding-left: 18px; line-height: 1.6; color: var(--text);">
+          <li><strong>AOT SM8650 NPU Parity:</strong> Offloaded <strong>970 / 970 ops (100%)</strong> into 1 HTP partition. Generated <code>mcv2_576x832_w8a8_cross_mixed_Qualcomm_SM8650_apply_plugin.tflite</code> (55,615,832 B, SHA-256: <code>d687f414...</code>).</li>
+          <li><strong>Execution Context:</strong> Evaluations executed strictly on Host CPU (XNNPACK / CPUExecutionProvider). No claim that host latency equals physical NPU acceleration.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance Comparison Table -->
+  <div class="card">
+    <div class="card-title">
+      <span>Held-Out Quantitative Parity Benchmark (vs FP32 Reference)</span>
+      <span class="badge accent">20 Cross-Series Pages + sasa.png</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Candidate Recipe</th>
+            <th>Calibration Set</th>
+            <th class="num-col">All 20 Pages (dB)</th>
+            <th class="num-col">Prev 7 Pages (dB)</th>
+            <th class="num-col">sasa.png (dB)</th>
+            <th class="num-col">Signed RGB Shift (R / G / B)</th>
+            <th class="num-col">Model Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>cross_mixed_w8a8</strong><br><span class="badge green">Winner / Promoted</span></td>
+            <td>4 Synth + 79 Manga (All 4 Series)</td>
+            <td class="num-col metric-val" style="color: var(--success-text);">35.60 dB</td>
+            <td class="num-col metric-val">31.58 dB</td>
+            <td class="num-col metric-val">35.65 dB</td>
+            <td class="num-col"><code class="code-sm">+0.00016 / -0.00027 / +0.00394</code></td>
+            <td class="num-col">34.52 MB</td>
+          </tr>
+          <tr>
+            <td><strong>cross_manga_w8a8</strong><br><span class="badge">Manga-Only Arm</span></td>
+            <td>79 Manga Pages (All 4 Series)</td>
+            <td class="num-col metric-val">35.20 dB</td>
+            <td class="num-col metric-val">30.94 dB</td>
+            <td class="num-col metric-val">35.24 dB</td>
+            <td class="num-col"><code class="code-sm">+0.00141 / +0.00015 / +0.00463</code></td>
+            <td class="num-col">34.52 MB</td>
+          </tr>
+          <tr>
+            <td><strong>synthetic_w8a8</strong><br><span class="badge">Prior Baseline</span></td>
+            <td>4 Procedural Synthetic Samples</td>
+            <td class="num-col metric-val">33.91 dB</td>
+            <td class="num-col metric-val">31.93 dB</td>
+            <td class="num-col metric-val">36.21 dB</td>
+            <td class="num-col"><code class="code-sm">-0.00506 / -0.00104 / +0.00487</code></td>
+            <td class="num-col">34.52 MB</td>
+          </tr>
+          <tr>
+            <td><strong>rep_earlier_w8a8</strong><br><span class="badge">Earlier Rep</span></td>
+            <td>6 Representative Samples</td>
+            <td class="num-col metric-val">29.71 dB</td>
+            <td class="num-col metric-val">25.96 dB</td>
+            <td class="num-col metric-val">31.69 dB</td>
+            <td class="num-col"><code class="code-sm">-0.01209 / -0.00354 / +0.01546</code></td>
+            <td class="num-col">34.52 MB</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cross-Series Generalization Breakdown -->
+  <div class="card">
+    <div class="card-title">
+      <span>Per-Series Generalization (Mean PSNR vs FP32 Graph)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Series Name</th>
+            <th class="num-col">Total Pages</th>
+            <th class="num-col">Calib Pages</th>
+            <th class="num-col">Held-Out Pages</th>
+            <th class="num-col">synthetic_w8a8</th>
+            <th class="num-col">cross_mixed_w8a8</th>
+            <th class="num-col">cross_manga_w8a8</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>drawing-saikyou</strong> (Ch 202/203)</td>
+            <td class="num-col">34</td>
+            <td class="num-col">27</td>
+            <td class="num-col">7 (pinned)</td>
+            <td class="num-col">31.93 dB</td>
+            <td class="num-col metric-val">31.58 dB</td>
+            <td class="num-col">30.94 dB</td>
+          </tr>
+          <tr>
+            <td><strong>musket-girls</strong> (Ch 37.2)</td>
+            <td class="num-col">14</td>
+            <td class="num-col">11</td>
+            <td class="num-col">3</td>
+            <td class="num-col">33.47 dB</td>
+            <td class="num-col metric-val" style="color: var(--success-text);">38.23 dB (+4.76 dB)</td>
+            <td class="num-col">38.05 dB</td>
+          </tr>
+          <tr>
+            <td><strong>osananajimi</strong> (Ch 21)</td>
+            <td class="num-col">35</td>
+            <td class="num-col">28</td>
+            <td class="num-col">7</td>
+            <td class="num-col">36.15 dB</td>
+            <td class="num-col metric-val" style="color: var(--success-text);">37.19 dB (+1.04 dB)</td>
+            <td class="num-col">37.10 dB</td>
+          </tr>
+          <tr>
+            <td><strong>shinda-ishii</strong> (Ch 24)</td>
+            <td class="num-col">16</td>
+            <td class="num-col">13</td>
+            <td class="num-col">3</td>
+            <td class="num-col">33.77 dB</td>
+            <td class="num-col metric-val" style="color: var(--success-text);">38.65 dB (+4.88 dB)</td>
+            <td class="num-col">37.87 dB</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Reproducibility & Staging Hashes -->
+  <div class="card">
+    <div class="card-title">
+      <span>Verified Artifact Hashes & Scratch Staging</span>
+    </div>
+    <div style="font-size: 11px; line-height: 1.8;">
+      <div><strong>FP32 Graph Reference:</strong> <span class="hash-val">f5fd5a6e1fc05b76f947519b6c9db76b2e2f627f3c2ba48b04572558dfe7ba89</span></div>
+      <div><strong>cross_mixed_w8a8 TFLite:</strong> <span class="hash-val">603ede5ead4394e639b1712b69ff01ce279adfa6c4c6084fcad1f4ebb6def23f</span></div>
+      <div><strong>cross_manga_w8a8 TFLite:</strong> <span class="hash-val">cc842beb944653e6cde04c4b2be7785a245a9f4a6f17d61a85ef144bd65a23f6</span></div>
+      <div><strong>SM8650 HTP v75 AOT Model:</strong> <span class="hash-val">d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9</span></div>
+    </div>
+  </div>
+</body>
+</html>

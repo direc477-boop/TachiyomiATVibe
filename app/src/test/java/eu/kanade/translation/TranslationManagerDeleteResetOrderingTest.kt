@@ -1,5 +1,6 @@
 package eu.kanade.translation
 
+import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.translation.coordinator.BatchTranslationCoordinator
 import eu.kanade.translation.coordinator.ReaderTranslationCoordinator
@@ -36,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Pins the required delete/reset order: cancellation and worker joins precede store eviction,
  * reader-stream clearing, artifact deletion, cache invalidation, and companion-image retirement.
- * Exact event sequences protect this teardown contract from accidental reordering.
  */
 class TranslationManagerDeleteResetOrderingTest {
 
@@ -60,7 +60,7 @@ class TranslationManagerDeleteResetOrderingTest {
     private fun storeWithPage(pageKey: String): ChapterTranslationStore {
         val store = mockk<ChapterTranslationStore>(relaxed = true)
         every { store.state } returns MutableStateFlow(
-            mapOf(pageKey to PageTranslation(cleanedImageName = "old.jpg")),
+            mapOf(pageKey to PageTranslation(cleanedImageName = "old.jpg", coloredImageName = "p1.colored.v1.jpg")),
         )
         coEvery { store.markDefunct() } coAnswers { log("markDefunct") }
         coEvery { store.deletePage(any()) } answers {
@@ -259,12 +259,11 @@ class TranslationManagerDeleteResetOrderingTest {
                     "clearPage",
                     "deletePage",
                     "storeFlush",
-                    // One companion-dir scan feeds the retired-name set; each
-                    // name (persisted + fixed publication names) is then
-                    // retired through the stream registry (the registry
-                    // invokes the delete callback itself, so it is not part
-                    // of this synchronous event stream).
+                    // One companion-dir scan feeds the retired-name set (persisted
+                    // cleaned + colored, then fixed names); the stream registry
+                    // invokes each delete callback outside this synchronous stream.
                     "findCompanionImageDir",
+                    "retirePageCompanionImage",
                     "retirePageCompanionImage",
                     "retirePageCompanionImage",
                     "retirePageCompanionImage",
@@ -273,6 +272,98 @@ class TranslationManagerDeleteResetOrderingTest {
                 "resetOcrData ordering changed: $events",
             )
         }
+
+    @Test
+    fun `resetOcrData retires versioned colored companion images without touching other pages`() =
+        runBlocking<Unit> {
+            val source = mockk<HttpSource>(relaxed = true)
+            val manga = mockk<Manga>(relaxed = true)
+            val chapter = mockk<Chapter>(relaxed = true)
+            every { chapter.id } returns 42L
+            val manager = newManager(
+                store = storeWithPage("p1"),
+                queue = MutableStateFlow(emptyList()),
+            )
+            val companionDir = mockk<UniFile>()
+            fun fileNamed(name: String): UniFile {
+                val file = mockk<UniFile>()
+                every { file.name } returns name
+                return file
+            }
+            every { companionDir.listFiles() } returns arrayOf(
+                fileNamed("p1.cleaned.v1.jpg"),
+                fileNamed("p1.colored.v1.jpg"),
+                fileNamed("p2.colored.v9.jpg"),
+            )
+            every {
+                manager.provider.findCompanionImageDir(any(), any(), any(), any())
+            } returns companionDir
+            val retiredNames = mutableListOf<String>()
+            every {
+                manager.streamRegistry.retireCleanedImage(any(), any(), any(), any(), any(), any())
+            } answers { retiredNames += arg<String>(4) }
+            events.clear()
+
+            manager.resetOcrData(chapter, manga, source, "p1")
+
+            assertTrue(
+                retiredNames == listOf(
+                    "old.jpg",
+                    "p1.colored.v1.jpg",
+                    "p1.cleaned.png",
+                    "p1.cleaned.jpg",
+                    "p1.rendered.png",
+                    "p1.cleaned.v1.jpg",
+                ),
+                "page reset must retire persisted and versioned colored names alongside cleaned: $retiredNames",
+            )
+            assertTrue(
+                "p2.colored.v9.jpg" !in retiredNames,
+                "the page-key prefix must scope the sweep; other pages' colored files stay: $retiredNames",
+            )
+        }
+
+    @Test
+    fun `companion retirement routes the reference guard by image domain`() = runBlocking<Unit> {
+        val source = mockk<HttpSource>(relaxed = true)
+        val manga = mockk<Manga>(relaxed = true)
+        val chapter = mockk<Chapter>(relaxed = true)
+        every { chapter.id } returns 42L
+        val manager = newManager(
+            store = storeWithPage("p1"),
+            queue = MutableStateFlow(emptyList()),
+        )
+        val store = manager.activeStores.get(42L)!!
+        every { store.mayDeleteColoredImage(any(), any()) } answers {
+            log("mayDeleteColored:" + arg<String>(1))
+            true
+        }
+        every { store.isCleanedImageReferencedByAnotherPage(any(), any()) } answers {
+            log("isCleanedReferenced:" + arg<String>(1))
+            false
+        }
+        val retirementCallbacks = mutableListOf<() -> Unit>()
+        every {
+            manager.streamRegistry.retireCleanedImage(any(), any(), any(), any(), any(), any())
+        } answers { retirementCallbacks += arg<() -> Unit>(5) }
+        events.clear()
+
+        manager.resetOcrData(chapter, manga, source, "p1")
+        retirementCallbacks.forEach { it() }
+
+        assertTrue(
+            "mayDeleteColored:p1.colored.v1.jpg" in events,
+            "colored names must be authorized through the colored-domain guard: $events",
+        )
+        assertTrue(
+            "isCleanedReferenced:old.jpg" in events,
+            "cleaned names must keep the cleaned-domain guard: $events",
+        )
+        assertTrue(
+            events.none { it.startsWith("mayDeleteColored:old.jpg") },
+            "cleaned names must never consult the colored guard: $events",
+        )
+    }
 
     @Test
     fun `cancelRunningChapterForReplace awaits cancel and clear before removing the queue entry`() = runTest {
@@ -378,7 +469,7 @@ class TranslationManagerDeleteResetOrderingTest {
             try {
                 val f = cls.getDeclaredField(fieldName)
                 f.isAccessible = true
-                return f.get(target)
+                return f.get(target)!!
             } catch (_: NoSuchFieldException) {
                 cls = cls.superclass
             }

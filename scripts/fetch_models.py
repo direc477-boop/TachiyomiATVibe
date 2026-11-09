@@ -24,6 +24,7 @@ MANIFEST_PATH = Path(__file__).with_name("models.manifest")
 CHUNK_SIZE = 1024 * 1024
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 MODEL_GROUPS = {
+    "ocr": "ocr/",
     "paddle": "ocr/paddle-v6-small/",
     "aot": "inpainting/aot_512_regen_gap_fp16.tflite",
     "lama": "inpainting/manga_lama_fused_fp16.tflite",
@@ -157,6 +158,23 @@ def is_verified(path: Path, size: int, digest: str) -> bool:
         return False
     actual_size, actual_digest = digest_file(path)
     return actual_size == size and actual_digest == digest
+
+
+def verify_existing_models(root: Path, files: list[dict[str, Any]]) -> None:
+    invalid = []
+    for entry in files:
+        destination = destination_for(root, entry["path"])
+        if destination.is_dir() or not is_verified(destination, entry["size_bytes"], entry["sha256"]):
+            invalid.append(entry["path"])
+        else:
+            print(f"[verified] {entry['path']}")
+
+    if invalid:
+        details = "\n".join(f"  - {relative_path}" for relative_path in invalid)
+        raise FetchError(
+            "pre-provisioned model assets are missing or invalid; run without --verify-only to repair:\n" + details
+        )
+    print(f"Verified {len(files)} pre-provisioned model files.")
 
 
 def remove_models(root: Path, files: list[dict[str, Any]]) -> None:
@@ -317,12 +335,18 @@ def parse_arguments() -> argparse.Namespace:
         "--group",
         nargs="+",
         choices=sorted(MODEL_GROUPS),
-        help="provision only selected families: paddle (ONNX + optimized LiteRT), aot, lama, fumeto, coloring",
+        help="provision only selected families: ocr, paddle, aot, lama, fumeto, coloring",
     )
-    parser.add_argument(
+    asset_action = parser.add_mutually_exclusive_group()
+    asset_action.add_argument(
         "--clean",
         action="store_true",
         help="remove only files listed in the manifest from the selected project root",
+    )
+    asset_action.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="verify all selected local model assets without downloading or converting",
     )
     return parser.parse_args()
 
@@ -335,6 +359,10 @@ def main() -> int:
 
         if arguments.clean:
             remove_models(root, files)
+            return 0
+
+        if arguments.verify_only:
+            verify_existing_models(root, files)
             return 0
 
         for entry in files:

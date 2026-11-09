@@ -11,6 +11,7 @@ import eu.kanade.translation.persistence.DurableFailureMetadata
 import eu.kanade.translation.persistence.FailureCategory
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 
 class PageWorkPlannerTest {
@@ -270,8 +271,64 @@ class PageWorkPlannerTest {
         terminal.retryEligible shouldBe false
     }
 
+    @Test
+    fun `colorize-only page with matching source identity demands no OCR work`() {
+        val plan = PageWorkPlanner.planPage(
+            BatchPlannerInput(
+                pageKey = "page-1",
+                page = colorizeOnlyPage("page-1", "sha-colored"),
+                sourceFingerprint = "sha-colored",
+            ),
+        )
+
+        // Identity-verified coloring is respected: no OCR rework is planned
+        // (stage may be terminal or wait behind detection, but never RUN).
+        plan.stage(BatchStage.OCR).decision shouldNotBe StageDecision.RUN
+        plan.stage(BatchStage.TRANSLATION).decision shouldNotBe StageDecision.RUN
+    }
+
+    @Test
+    fun `colorize-only page without identity evidence plans real work`() {
+        val plan = PageWorkPlanner.planPage(
+            BatchPlannerInput(
+                pageKey = "page-1",
+                page = colorizeOnlyPage("page-1", "sha-colored"),
+                sourceFingerprint = null,
+            ),
+        )
+
+        // Identity unavailable → unverified → detection/render work is planned.
+        plan.stage(BatchStage.DETECTION).decision shouldBe StageDecision.RUN
+    }
+
+    @Test
+    fun `colorize-only page with stale source identity plans real work`() {
+        val plan = PageWorkPlanner.planPage(
+            BatchPlannerInput(
+                pageKey = "page-1",
+                page = colorizeOnlyPage("page-1", "sha-colored"),
+                sourceFingerprint = "sha-changed",
+            ),
+        )
+
+        // New page bytes invalidate the saved coloring: work is planned again.
+        plan.stage(BatchStage.DETECTION).decision shouldBe StageDecision.RUN
+    }
+
     private fun BatchPageWorkPlan.stage(stage: BatchStage): StageWorkDecision =
         stages.first { it.stage == stage }
+
+    private fun colorizeOnlyPage(key: String, fingerprint: String) = PageTranslation(
+        sourceFileName = key,
+        ocrStatus = StageStatus.SKIPPED,
+        translationStatus = StageStatus.SKIPPED,
+        inpaintStatus = StageStatus.SKIPPED,
+        originalImageFallback = true,
+        coloredFromOriginal = true,
+        coloredImageName = "$key.color.jpg",
+        coloringStatus = StageStatus.READY,
+        sourceFingerprint = fingerprint,
+    )
 
     private fun BatchPageWorkPlan.decisions(): Map<BatchStage, StageDecision> =
         stages.associate { it.stage to it.decision }

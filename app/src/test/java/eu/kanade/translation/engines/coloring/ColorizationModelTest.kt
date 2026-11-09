@@ -1,0 +1,24 @@
+package eu.kanade.translation.engines.coloring
+
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
+import tachiyomi.domain.translation.ColorizationModel
+
+class ColorizationModelTest {
+
+    @Test
+    fun `every model round-trips through its pref value`() {
+        ColorizationModel.entries.forEach { model ->
+            ColorizationModel.fromPrefOrNull(model.prefValue) shouldBe model
+            ColorizationModel.fromPrefOrNull(model.prefValue.lowercase()) shouldBe model
+        }
+    }
+
+    @Test
+    fun `npu route resolves and unknown values resolve to null`() {
+        ColorizationModel.fromPrefOrNull("MANGA_COLORIZATION_V2_NPU") shouldBe
+            ColorizationModel.MANGA_COLORIZATION_V2_NPU
+        ColorizationModel.fromPrefOrNull("NONSENSE") shouldBe null
+        ColorizationModel.DEFAULT shouldBe ColorizationModel.MANGA_COLORIZATION_V2
+    }
+}

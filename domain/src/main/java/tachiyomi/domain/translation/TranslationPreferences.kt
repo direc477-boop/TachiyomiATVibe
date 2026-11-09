@@ -84,6 +84,13 @@ class TranslationPreferences(
     fun autoTranslate() = preferenceStore.getBoolean("auto_translate", false)
 
     /**
+     * Reader auto-colorization: when enabled (and [translationColorizationEnabled] is on),
+     * the reader proactively colorizes the current page N and next page N+1 on viewport changes.
+     * Operates without requiring whole-chapter download, coexisting with autoTranslate.
+     */
+    fun autoColorize() = preferenceStore.getBoolean("auto_colorize", false)
+
+    /**
      * TachiyomiAT: translate button presentation on reader pages.
      *
      * One lightweight boolean encodes the two spec modes:
@@ -128,6 +135,17 @@ class TranslationPreferences(
     /** Which colorization engine runs when colorization is enabled. */
     fun translationColorizationModel(): Preference<ColorizationModel> =
         preferenceStore.getEnum("translation_colorization_model", ColorizationModel.DEFAULT)
+
+    /** Resolution preset for the explicit MCV2 INT8 CPU route. */
+    fun translationColorizationQuality(): Preference<ColorizationQuality> =
+        preferenceStore.getEnum("translation_colorization_quality", ColorizationQuality.DEFAULT)
+
+    /**
+     * Master gate for on-device QuickSRNetLarge page upscaling. Default OFF.
+     * While UpscalingModelCatalog.operational is false, enabling yields an
+     * explicit unsupported state: no upscaling runs and nothing claims success.
+     */
+    fun translationUpscalingEnabled() = preferenceStore.getBoolean("translation_upscaling_enabled", false)
 
     fun translationRecentLanguagesFrom() = preferenceStore.getString("translation_recent_languages_from", "")
     fun translationRecentLanguagesTo() = preferenceStore.getString("translation_recent_languages_to", "")

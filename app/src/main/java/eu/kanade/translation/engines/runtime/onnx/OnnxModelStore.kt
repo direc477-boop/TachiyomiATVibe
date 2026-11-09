@@ -275,6 +275,11 @@ class OnnxModelStore(private val context: Context) {
         return int8 ?: copyIfNeeded(dir, "manga_colorize_fp32.onnx", "models/coloring/manga_colorize_fp32.onnx")
     }
 
+    fun ensureMangaColorizationInt8(): File {
+        val dir = File(modelsDir, "coloring").also { if (!it.exists()) it.mkdirs() }
+        return copyIfNeeded(dir, "manga_colorize_int8.onnx", "models/coloring/manga_colorize_int8.onnx")
+    }
+
     fun liteRtVisionAssetsAvailable(): Boolean {
         return try {
             context.assets.list("models/detection/litert")?.isNotEmpty() == true ||

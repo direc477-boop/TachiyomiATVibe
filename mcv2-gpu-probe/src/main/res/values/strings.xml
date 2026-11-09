@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Operator-facing probe UI text: intentionally non-translatable (diagnostic instrument). -->
+<resources>
+    <string name="parity_idle_no_run" translatable="false">No run requested.\nLaunch via adb am start with --es extras.</string>
+    <string name="parity_storage_missing" translatable="false">FAILED: external files dir unavailable — see logcat.</string>
+    <string name="parity_starting" translatable="false">Starting parity run in foreground service (notification shows live status)…</string>
+    <string name="parity_observe" translatable="false">Run active in foreground service — observing…</string>
+</resources>

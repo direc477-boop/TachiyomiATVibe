@@ -8,6 +8,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
+import tachiyomi.domain.translation.ColorizationQuality
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.OcrModel
 import tachiyomi.domain.translation.StandardEngine
@@ -17,6 +18,7 @@ import tachiyomi.domain.translation.TranslationEngineCategory
 data class TranslationSettingsState(
     val enabled: Boolean = false,
     val autoTranslate: Boolean = false,
+    val autoColorize: Boolean = false,
     val translateFromLanguage: String = "",
     val translateButtonWithControls: Boolean = false,
     val floaterEnabled: Boolean = true,
@@ -31,6 +33,8 @@ data class TranslationSettingsState(
     val inpaintingNeuralModel: NeuralInpaintModel = NeuralInpaintModel.DEFAULT,
     val colorizationEnabled: Boolean = false,
     val colorizationModel: ColorizationModel = ColorizationModel.DEFAULT,
+    val colorizationQuality: ColorizationQuality = ColorizationQuality.DEFAULT,
+    val upscalingEnabled: Boolean = false,
     val engineCategory: TranslationEngineCategory = TranslationEngineCategory.STANDARD,
     val standardEngine: StandardEngine = StandardEngine.GOOGLE,
     val deeplApiKey: String = "",

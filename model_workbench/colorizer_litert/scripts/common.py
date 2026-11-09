@@ -316,7 +316,7 @@ def interpreter_run(tflite_path, input_arrays):
         pairs = list(zip(details_in, input_arrays))
     for d, arr in pairs:
         a = np.ascontiguousarray(arr.astype(np.float32))
-        if list(a.shape) != d["shape"]:
+        if list(a.shape) != [int(x) for x in d["shape"]]:
             interp.resize_tensor_input(d["index"], list(a.shape))
         interp.set_tensor(d["index"], a)
     interp.invoke()

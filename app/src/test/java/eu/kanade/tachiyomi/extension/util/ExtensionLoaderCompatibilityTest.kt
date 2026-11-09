@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.util
 
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.decodeFromByteArray
 import mihon.domain.extensionrepo.service.toExtensionRepo
 import org.junit.jupiter.api.Test
 
@@ -77,5 +78,34 @@ class ExtensionLoaderCompatibilityTest {
         domainRepo.name shouldBe "Keiyoushi"
         domainRepo.shortName shouldBe null
         domainRepo.signingKeyFingerprint shouldBe "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+        parsed.indexV2 shouldBe "https://github.com/keiyoushi/extensions/raw/repo/index.pb"
+    }
+
+    @Test
+    fun `proto extension store serialization roundtrip`() {
+        val testStore = eu.kanade.tachiyomi.extension.api.ProtoExtensionStore(
+            name = "TestRepo",
+            extensionList = eu.kanade.tachiyomi.extension.api.ProtoExtensionList(
+                extensions = listOf(
+                    eu.kanade.tachiyomi.extension.api.ProtoExtension(
+                        name = "Test Extension",
+                        packageName = "eu.kanade.tachiyomi.extension.en.test",
+                        versionName = "1.4.1",
+                        versionCode = 1L,
+                        extensionLib = "1.6",
+                    ),
+                ),
+            ),
+        )
+
+        val bytes = kotlinx.serialization.protobuf.ProtoBuf.encodeToByteArray(
+            eu.kanade.tachiyomi.extension.api.ProtoExtensionStore.serializer(),
+            testStore,
+        )
+        val decoded = kotlinx.serialization.protobuf.ProtoBuf.decodeFromByteArray<eu.kanade.tachiyomi.extension.api.ProtoExtensionStore>(bytes)
+
+        decoded.name shouldBe "TestRepo"
+        decoded.extensionList?.extensions?.size shouldBe 1
+        decoded.extensionList?.extensions?.first()?.packageName shouldBe "eu.kanade.tachiyomi.extension.en.test"
     }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -21,6 +22,8 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.protobuf.ProtoBuf
+import kotlinx.serialization.protobuf.ProtoNumber
 import logcat.LogPriority
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
@@ -31,6 +34,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.injectLazy
 import java.time.Instant
+import java.util.zip.GZIPInputStream
 import kotlin.time.Duration.Companion.days
 
 internal class ExtensionApi {
@@ -41,6 +45,7 @@ internal class ExtensionApi {
     private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
     private val extensionManager: ExtensionManager by injectLazy()
     private val json: Json by injectLazy()
+    private val protoBuf: ProtoBuf by injectLazy()
 
     private val lastExtCheck: Preference<Long> by lazy {
         preferenceStore.getLong(Preference.appStateKey("last_ext_check"), 0)
@@ -63,13 +68,33 @@ internal class ExtensionApi {
             .removeSuffix("/index.pb")
             .removeSuffix("/repo.json")
             .removeSuffix("/")
-        // 1. Try modern index.json (Keiyoushi and newer repositories)
+
+        // 1. Try modern index.pb (Keiyoushi and newer Protobuf-based repositories)
+        try {
+            val response = networkService.client
+                .newCall(GET("$repoBaseUrl/index.pb"))
+                .awaitSuccess()
+
+            val rawBytes = response.body.bytes()
+            val decompressedBytes = decompressIfGzipped(rawBytes)
+            val store = protoBuf.decodeFromByteArray<ProtoExtensionStore>(decompressedBytes)
+            val extensions = store.extensionList?.extensions.orEmpty()
+                .toExtensionsFromProto(repoBaseUrl)
+            if (extensions.isNotEmpty()) {
+                return extensions
+            }
+        } catch (e: Throwable) {
+            logcat(LogPriority.DEBUG, e) { "Failed to get index.pb from $repoBaseUrl, attempting index.json" }
+        }
+
+        // 2. Try modern index.json
         try {
             val response = networkService.client
                 .newCall(GET("$repoBaseUrl/index.json"))
                 .awaitSuccess()
 
-            val body = response.body.string()
+            val rawBytes = response.body.bytes()
+            val body = decompressIfGzipped(rawBytes).toString(Charsets.UTF_8).trim().removePrefix("\uFEFF")
             with(json) {
                 if (body.contains("\"extensionList\"")) {
                     val repoIndex = decodeFromString<RepoIndexJsonObject>(body)
@@ -90,15 +115,16 @@ internal class ExtensionApi {
             logcat(LogPriority.DEBUG, e) { "Failed to get index.json from $repoBaseUrl, attempting index.min.json" }
         }
 
-        // 2. Fallback to legacy index.min.json
+        // 3. Fallback to legacy index.min.json
         return try {
             val response = networkService.client
                 .newCall(GET("$repoBaseUrl/index.min.json"))
                 .awaitSuccess()
 
+            val rawBytes = response.body.bytes()
+            val body = decompressIfGzipped(rawBytes).toString(Charsets.UTF_8).trim().removePrefix("\uFEFF")
             with(json) {
-                response
-                    .parseAs<List<ExtensionJsonObject>>()
+                decodeFromString<List<ExtensionJsonObject>>(body)
                     .toExtensions(repoBaseUrl)
             }
         } catch (e: Throwable) {
@@ -207,12 +233,60 @@ internal class ExtensionApi {
             }
     }
 
+    private fun List<ProtoExtension>.toExtensionsFromProto(repoUrl: String): List<Extension.Available> {
+        return this
+            .filterNot { isDummyWarningExtension(it.packageName, it.name) }
+            .filter {
+                val libVersion = it.extractLibVersion()
+                libVersion >= ExtensionLoader.LIB_VERSION_MIN && libVersion <= ExtensionLoader.LIB_VERSION_MAX
+            }
+            .map {
+                val sourceLangs = it.sources.map { s -> s.language }.filter { s -> s.isNotEmpty() }.toSet()
+                val lang = when (sourceLangs.size) {
+                    0 -> it.packageName.substringAfter("eu.kanade.tachiyomi.extension.").substringBefore('.')
+                    1 -> sourceLangs.first()
+                    else -> "all"
+                }
+                Extension.Available(
+                    name = it.name.substringAfter("Tachiyomi: ").substringAfter("Tachiyomix: "),
+                    pkgName = it.packageName,
+                    versionName = it.versionName,
+                    versionCode = it.versionCode,
+                    libVersion = it.extractLibVersion(),
+                    lang = lang,
+                    isNsfw = it.contentWarning == ProtoContentWarning.NSFW,
+                    sources = it.sources.map { s ->
+                        Extension.Available.Source(
+                            id = s.id,
+                            lang = s.language,
+                            name = s.name,
+                            baseUrl = s.homeUrl,
+                        )
+                    },
+                    apkName = it.resources?.apkUrl ?: "${it.packageName}.apk",
+                    iconUrl = it.resources?.iconUrl ?: "$repoUrl/icon/${it.packageName}.png",
+                    repoUrl = repoUrl,
+                )
+            }
+    }
+
     fun getApkUrl(extension: Extension.Available): String {
         return if (extension.apkName.startsWith("http://") || extension.apkName.startsWith("https://")) {
             extension.apkName
         } else {
             "${extension.repoUrl}/apk/${extension.apkName}"
         }
+    }
+
+    private fun decompressIfGzipped(bytes: ByteArray): ByteArray {
+        if (bytes.size >= 2 && (bytes[0].toInt() and 0xFF) == 0x1F && (bytes[1].toInt() and 0xFF) == 0x8B) {
+            return GZIPInputStream(bytes.inputStream()).use { it.readBytes() }
+        }
+        return bytes
+    }
+
+    private fun ProtoExtension.extractLibVersion(): Double {
+        return extensionLib?.toDoubleOrNull() ?: versionName.split('.').take(2).joinToString(".").toDoubleOrNull() ?: 0.0
     }
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {
@@ -258,18 +332,18 @@ object AnyLongSerializer : KSerializer<Long> {
 }
 
 @Serializable
-private data class RepoIndexJsonObject(
+internal data class RepoIndexJsonObject(
     val name: String? = null,
     val extensionList: RepoExtensionListJsonObject? = null,
 )
 
 @Serializable
-private data class RepoExtensionListJsonObject(
+internal data class RepoExtensionListJsonObject(
     val extensions: List<RepoExtensionEntryJsonObject> = emptyList(),
 )
 
 @Serializable
-private data class RepoExtensionEntryJsonObject(
+internal data class RepoExtensionEntryJsonObject(
     val name: String,
     val packageName: String,
     val versionName: String,
@@ -283,14 +357,14 @@ private data class RepoExtensionEntryJsonObject(
 )
 
 @Serializable
-private data class RepoExtensionResourcesJsonObject(
+internal data class RepoExtensionResourcesJsonObject(
     val apkUrl: String? = null,
     val iconUrl: String? = null,
     val jarUrl: String? = null,
 )
 
 @Serializable
-private data class RepoExtensionSourceJsonObject(
+internal data class RepoExtensionSourceJsonObject(
     @Serializable(with = AnyStringSerializer::class)
     val id: String? = null,
     val name: String? = null,
@@ -328,4 +402,56 @@ private val extensionSourceMapper: (ExtensionSourceJsonObject) -> Extension.Avai
         name = it.name,
         baseUrl = it.baseUrl,
     )
+}
+
+@Serializable
+internal data class ProtoExtensionStore(
+    @ProtoNumber(1) val name: String = "",
+    @ProtoNumber(2) val badgeLabel: String? = null,
+    @ProtoNumber(3) val signingKey: String? = null,
+    @ProtoNumber(101) val extensionList: ProtoExtensionList? = null,
+    @ProtoNumber(102) val extensionListUrl: String? = null,
+)
+
+@Serializable
+internal data class ProtoExtensionList(
+    @ProtoNumber(1) val extensions: List<ProtoExtension> = emptyList(),
+)
+
+@Serializable
+internal data class ProtoExtension(
+    @ProtoNumber(1) val name: String = "",
+    @ProtoNumber(2) val packageName: String = "",
+    @ProtoNumber(3) val resources: ProtoResources? = null,
+    @ProtoNumber(4) val extensionLib: String? = null,
+    @ProtoNumber(5) val versionCode: Long = 0L,
+    @ProtoNumber(6) val versionName: String = "",
+    @ProtoNumber(7) val contentWarning: ProtoContentWarning = ProtoContentWarning.UNSPECIFIED,
+    @ProtoNumber(8) val sources: List<ProtoSource> = emptyList(),
+)
+
+@Serializable
+internal data class ProtoResources(
+    @ProtoNumber(1) val apkUrl: String? = null,
+    @ProtoNumber(2) val iconUrl: String? = null,
+)
+
+@Serializable
+internal data class ProtoSource(
+    @ProtoNumber(1) val id: Long = 0L,
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val language: String = "",
+    @ProtoNumber(4) val homeUrl: String = "",
+)
+
+@Serializable
+internal enum class ProtoContentWarning {
+    @ProtoNumber(0)
+    UNSPECIFIED,
+    @ProtoNumber(1)
+    SAFE,
+    @ProtoNumber(2)
+    MIXED,
+    @ProtoNumber(3)
+    NSFW,
 }

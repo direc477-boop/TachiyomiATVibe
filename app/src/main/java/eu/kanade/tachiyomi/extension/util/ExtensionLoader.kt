@@ -246,7 +246,7 @@ internal object ExtensionLoader {
             is Double -> value
             is Number -> value.toDouble()
             is String -> value.toDoubleOrNull()
-            else -> null
+            else -> appInfo.metaData?.getFloat(METADATA_LIB_VERSION)?.takeUnless { it == 0.0f }?.toString()?.toDoubleOrNull()
         }
         val libVersion = metaLibVersion ?: versionName.split('.').take(2).joinToString(".").toDoubleOrNull()
         if (libVersion == null || libVersion < (LIB_VERSION_MIN - 0.01) || libVersion > (LIB_VERSION_MAX + 0.01)) {
@@ -322,9 +322,7 @@ internal object ExtensionLoader {
                 }
             }
 
-        val langs = sources.filterIsInstance<CatalogueSource>()
-            .map { it.lang }
-            .toSet()
+        val langs = sources.map { it.lang }.toSet()
         val lang = when (langs.size) {
             0 -> ""
             1 -> langs.first()

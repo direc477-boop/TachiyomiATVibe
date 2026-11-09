@@ -61,7 +61,7 @@ class ReaderPreferences(
 
     fun navigateToPan() = preferenceStore.getBoolean("navigate_pan", true)
 
-    fun landscapeZoom() = preferenceStore.getBoolean("landscape_zoom", true)
+    fun landscapeZoom() = preferenceStore.getBoolean("landscape_zoom", false)
 
     fun cropBordersWebtoon() = preferenceStore.getBoolean("crop_borders_webtoon", false)
 

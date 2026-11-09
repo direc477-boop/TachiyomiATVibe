@@ -293,5 +293,14 @@ class P5CopyAndAccessibilityTest {
                 ),
             ) shouldBe "Queued."
         }
+        withClue("coloring chips indicate active colorization") {
+            labelOf(
+                TranslationProgressSnapshot.Page(
+                    pageKey = "p4",
+                    index = 5,
+                    stage = eu.kanade.translation.model.TranslationProgressStage.COLORING,
+                ),
+            ) shouldBe "Coloring."
+        }
     }
 }

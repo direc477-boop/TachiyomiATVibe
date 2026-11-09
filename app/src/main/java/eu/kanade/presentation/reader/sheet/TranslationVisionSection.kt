@@ -34,24 +34,12 @@ import tachiyomi.domain.translation.OcrModel
 import tachiyomi.i18n.at.ATMR
 import tachiyomi.presentation.core.i18n.stringResource
 
-/**
- * Vision and inpainting sections of the reader translation sheet: the OCR
- * engine selector, the FAST/BALANCE/QUALITY inpainting tiles and the neural
- * model override used whenever the mode is not FAST, plus the colorization
- * gate and model.
- */
 @Composable
-internal fun TranslationVisionSection(
+internal fun TranslationOcrInpaintSection(
     state: TranslationSettingsState,
     onOcrModelChange: (OcrModel) -> Unit,
     onTranslationInpaintingModeChange: (String) -> Unit,
     onTranslationInpaintingNeuralModelChange: (NeuralInpaintModel) -> Unit,
-    onColorizationEnabledChange: (Boolean) -> Unit,
-    onAutoColorizeChange: (Boolean) -> Unit,
-    onColorizationModelChange: (ColorizationModel) -> Unit,
-    onUpscalingEnabledChange: (Boolean) -> Unit,
-    onColorizeChapterClick: () -> Unit,
-    onColorizePageClick: () -> Unit,
 ) {
     SectionHeading(title = stringResource(ATMR.strings.reader_translation_section_vision))
 
@@ -127,7 +115,17 @@ internal fun TranslationVisionSection(
             )
         }
     }
+}
 
+@Composable
+internal fun TranslationColorizationSection(
+    state: TranslationSettingsState,
+    onColorizationEnabledChange: (Boolean) -> Unit,
+    onColorizationModelChange: (ColorizationModel) -> Unit,
+    onUpscalingEnabledChange: (Boolean) -> Unit,
+    onColorizeChapterClick: () -> Unit,
+    onColorizePageClick: () -> Unit,
+) {
     SectionHeading(title = stringResource(ATMR.strings.pref_colorization_title))
 
     Column(
@@ -151,13 +149,6 @@ internal fun TranslationVisionSection(
         ) {
             val colorizationOptions = colorizationModelOptions()
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SwitchCard(
-                    icon = Icons.Outlined.Palette,
-                    title = stringResource(ATMR.strings.pref_auto_colorize),
-                    subtitle = stringResource(ATMR.strings.pref_auto_colorize_summary),
-                    checked = state.autoColorize,
-                    onCheckedChange = onAutoColorizeChange,
-                )
                 SearchableConfigSelectorBox(
                     selectedLabel = colorizationOptions.firstOrNull { it.value == state.colorizationModel }?.label
                         ?: state.colorizationModel.name,
@@ -168,9 +159,6 @@ internal fun TranslationVisionSection(
             }
         }
 
-        // Page-scope and chapter-scope actions, always visible so the entry
-        // points and their preconditions stay discoverable even with
-        // colorization switched off.
         TranslationActionRow(
             icon = Icons.Outlined.Palette,
             title = stringResource(ATMR.strings.reader_colorize_page),
@@ -201,4 +189,36 @@ internal fun TranslationVisionSection(
             onCheckedChange = onUpscalingEnabledChange,
         )
     }
+}
+
+/**
+ * Vision and inpainting sections of the reader translation sheet.
+ */
+@Composable
+internal fun TranslationVisionSection(
+    state: TranslationSettingsState,
+    onOcrModelChange: (OcrModel) -> Unit,
+    onTranslationInpaintingModeChange: (String) -> Unit,
+    onTranslationInpaintingNeuralModelChange: (NeuralInpaintModel) -> Unit,
+    onColorizationEnabledChange: (Boolean) -> Unit,
+    onAutoColorizeChange: (Boolean) -> Unit = {},
+    onColorizationModelChange: (ColorizationModel) -> Unit,
+    onUpscalingEnabledChange: (Boolean) -> Unit,
+    onColorizeChapterClick: () -> Unit,
+    onColorizePageClick: () -> Unit,
+) {
+    TranslationOcrInpaintSection(
+        state = state,
+        onOcrModelChange = onOcrModelChange,
+        onTranslationInpaintingModeChange = onTranslationInpaintingModeChange,
+        onTranslationInpaintingNeuralModelChange = onTranslationInpaintingNeuralModelChange,
+    )
+    TranslationColorizationSection(
+        state = state,
+        onColorizationEnabledChange = onColorizationEnabledChange,
+        onColorizationModelChange = onColorizationModelChange,
+        onUpscalingEnabledChange = onUpscalingEnabledChange,
+        onColorizeChapterClick = onColorizeChapterClick,
+        onColorizePageClick = onColorizePageClick,
+    )
 }

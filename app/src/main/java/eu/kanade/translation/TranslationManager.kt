@@ -411,6 +411,9 @@ class TranslationManager private constructor(
         expectedRequestGeneration: Long? = null,
         autoStart: Boolean = true,
     ): Boolean {
+        if (!translationPreferences.translationColorizationEnabled().get()) {
+            translationPreferences.translationColorizationEnabled().set(true)
+        }
         if (!isColorizationReady()) return false
         val result = requestCoordinator.translateChapterAndStart(
             manga,
@@ -441,6 +444,9 @@ class TranslationManager private constructor(
         streamFn: () -> java.io.InputStream,
         origin: PageWriteOrigin = PageWriteOrigin.MANUAL,
     ): PageColorizeOutcome {
+        if (!translationPreferences.translationColorizationEnabled().get()) {
+            translationPreferences.translationColorizationEnabled().set(true)
+        }
         if (!isColorizationReady()) return PageColorizeOutcome.UNAVAILABLE
         val chapterId = chapter.id ?: return PageColorizeOutcome.FAILED
         val store = openOrCreateActiveChapterTranslationStoreSuspend(

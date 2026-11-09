@@ -895,6 +895,12 @@ class ReaderViewModel @JvmOverloads constructor(
     fun resetOcrData() =
         translationController.resetOcrData()
 
+    fun deleteCurrentPageData() =
+        translationController.deleteCurrentPageData()
+
+    fun isCurrentPageShared(): Boolean =
+        translationController.isCurrentPageShared()
+
     fun translateSinglePage(page: ReaderPage, force: Boolean? = null) {
         // Manual UI taps pass force == null; programmatic re-dispatch (which
         // already holds a confirmation) flows straight through.

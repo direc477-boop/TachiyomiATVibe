@@ -66,13 +66,9 @@ import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
 
 // Idle auto-hide: after this many ms with the menu collapsed and no
-// interaction, the floater dims and tucks toward its docked edge.
+// interaction, the floater dims toward its docked edge.
 private const val IDLE_DELAY_MS = 2500L
 private const val IDLE_ALPHA = 0.38f
-
-// Press-hold peek: holding the handle this long flips the page to its original
-// image until release; a tap toggles the menu instead.
-private const val PEEK_HOLD_MS = 320L
 
 // Shared by every position animation so an interrupted snap restarts with the
 // same easing instead of fighting another spec.
@@ -82,9 +78,8 @@ private val DockSnapSpring = spring<Float>(stiffness = 380f)
  * Draggable translator floater (chat-head style) for quick original/translated
  * comparison on the CURRENT page.
  *
- * Gestures on the handle: tap toggles the menu, a [PEEK_HOLD_MS] hold peeks at
- * the original image until release (via [onPeekChange]), and movement past
- * touch slop drags the handle (peek is cancelled in favor of the drag).
+ * Gestures on the handle: tap toggles the menu, while holding or dragging moves the
+ * handle smoothly with haptic feedback. Edge insets prevent getting stuck in bezels.
  *
  * The two [Animatable] fractions are the single source of truth: drag deltas
  * are applied with ordered [Animatable.snapTo] calls and release snaps with
@@ -107,7 +102,7 @@ fun TranslationCompareHandle(
     onOpenSettings: () -> Unit,
     onColorizeChapter: () -> Unit,
     onColorizePage: () -> Unit,
-    onPeekChange: (Boolean) -> Unit,
+    onPeekChange: (Boolean) -> Unit = {},
     idleFadeEnabled: Boolean,
     dockEnd: Boolean,
     onDockChange: (Boolean) -> Unit,
@@ -130,7 +125,6 @@ fun TranslationCompareHandle(
 
     val handleSizePx = with(density) { 40.dp.toPx() }
     val menuSpacingPx = with(density) { 6.dp.toPx() }
-    val tuckPx = with(density) { 8.dp.toPx() }
 
     // Normalized position, animated. x: 0 = start edge, 1 = end edge;
     // y: 0..1 top-to-bottom. Read only inside offset lambdas, so drag
@@ -167,32 +161,27 @@ fun TranslationCompareHandle(
             containerHeightPx = it.height
         },
     ) {
-        val insetPx = with(density) { 8.dp.toPx() }
-        val usableWidth = (containerWidthPx - 2 * insetPx - handleSizePx).coerceAtLeast(1f)
-        val usableHeight = (containerHeightPx - handleSizePx).coerceAtLeast(1f)
+        val horizontalInsetPx = with(density) { 16.dp.toPx() }
+        val topInsetPx = with(density) { 48.dp.toPx() }
+        val bottomMarginPx = with(density) { 16.dp.toPx() } + bottomReservePx
+
+        val usableWidth = (containerWidthPx - 2 * horizontalInsetPx - handleSizePx).coerceAtLeast(1f)
+        val usableHeight = (containerHeightPx - topInsetPx - bottomMarginPx - handleSizePx).coerceAtLeast(1f)
 
         // Anchored at the handle's top-left; sized only by the handle so menu
         // layout can never shift it.
         Box(
             modifier = Modifier
                 .offset {
-                    val tuck = if (isIdle && !expanded) {
-                        if (xFraction.value > 0.5f) tuckPx else -tuckPx
-                    } else {
-                        0f
-                    }
                     IntOffset(
-                        (insetPx + xFraction.value * usableWidth + tuck).roundToInt(),
-                        (yFraction.value * usableHeight)
-                            .coerceAtMost((usableHeight - bottomReservePx).coerceAtLeast(0f))
-                            .roundToInt(),
+                        (horizontalInsetPx + xFraction.value * usableWidth).roundToInt(),
+                        (topInsetPx + yFraction.value * usableHeight).roundToInt(),
                     )
                 }
                 .alpha(handleAlpha),
         ) {
-            // Single gesture owner for the handle: tap → menu, hold → peek,
-            // move past slop → drag. All events on the pressed pointer are
-            // consumed so the reader underneath never reacts to them.
+            // Single gesture owner for the handle: tap toggles menu, hold/drag relocates.
+            // All events on the pressed pointer are consumed so the reader underneath never reacts.
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -206,19 +195,14 @@ fun TranslationCompareHandle(
                             down.consume()
                             isIdle = false
                             var isDrag = false
-                            var peeking = false
                             var totalMove = 0f
-                            // Gesture-local truth for end-of-gesture decisions; the
-                            // animatables catch up via ordered snapTo launches.
                             var lastX = xFraction.value
                             var lastY = yFraction.value
 
-                            val holdJob: Job = scope.launch {
-                                delay(PEEK_HOLD_MS)
+                            val grabJob = scope.launch {
+                                delay(250L)
                                 if (!isDrag) {
-                                    peeking = true
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onPeekChange(true)
                                 }
                             }
 
@@ -235,11 +219,8 @@ fun TranslationCompareHandle(
                                     if (totalMove > viewConfiguration.touchSlop) {
                                         isDrag = true
                                         dragging = true
-                                        holdJob.cancel()
-                                        if (peeking) {
-                                            peeking = false
-                                            onPeekChange(false)
-                                        }
+                                        grabJob.cancel()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                 }
                                 if (isDrag) {
@@ -253,8 +234,7 @@ fun TranslationCompareHandle(
                                     }
                                 }
                             }
-                            holdJob.cancel()
-                            if (peeking) onPeekChange(false)
+                            grabJob.cancel()
                             if (isDrag) {
                                 dragging = false
                                 val endSide = lastX > 0.5f
@@ -311,20 +291,17 @@ fun TranslationCompareHandle(
                     val menuWidth = menuSizePx.width.toFloat()
                     val menuHeight = menuSizePx.height.toFloat()
                     if (menuWidth < 1f || menuHeight < 1f) return@offset IntOffset.Zero
-                    // Center on the handle, then clamp so the whole menu stays
-                    // inside the container and clear of the bottom reserve.
-                    val anchorTop = (yFraction.value * usableHeight)
-                        .coerceAtMost((usableHeight - bottomReservePx).coerceAtLeast(0f))
-                    val dyMin = -anchorTop
-                    val dyMax = (containerHeightPx - bottomReservePx - menuHeight - anchorTop)
+                    val anchorTop = topInsetPx + yFraction.value * usableHeight
+                    val dyMin = -anchorTop + topInsetPx
+                    val dyMax = (containerHeightPx - bottomMarginPx - menuHeight - anchorTop)
                         .coerceAtLeast(dyMin)
                     val dy = ((handleSizePx - menuHeight) / 2f).coerceIn(dyMin, dyMax)
-                    val anchorLeft = insetPx + xFraction.value * usableWidth
+                    val anchorLeft = horizontalInsetPx + xFraction.value * usableWidth
                     val dx = if (dockEnd) {
-                        (-(menuWidth + menuSpacingPx)).coerceAtLeast(-anchorLeft)
+                        (-(menuWidth + menuSpacingPx)).coerceAtLeast(-anchorLeft + horizontalInsetPx)
                     } else {
                         (handleSizePx + menuSpacingPx)
-                            .coerceAtMost(containerWidthPx - menuWidth - anchorLeft)
+                            .coerceAtMost(containerWidthPx - horizontalInsetPx - menuWidth - anchorLeft)
                     }
                     IntOffset(dx.roundToInt(), dy.roundToInt())
                 },

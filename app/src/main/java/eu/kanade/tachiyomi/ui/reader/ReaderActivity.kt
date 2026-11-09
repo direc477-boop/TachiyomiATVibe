@@ -681,8 +681,8 @@ class ReaderActivity : BaseActivity() {
                         onTranslationAiBaseUrlChange = { viewModel.setTranslationAiBaseUrl(it) },
                         onTranslationAiModelChange = { viewModel.setTranslationAiModel(it) },
                         onFetchAiModels = { viewModel.fetchAiModels() },
-                        onResetTranslationData = { viewModel.resetTranslationData() },
-                        onResetOcrData = { viewModel.resetOcrData() },
+                        isPageShared = viewModel.isCurrentPageShared(),
+                        onDeletePageData = { viewModel.deleteCurrentPageData() },
                     )
                 }
                 is ReaderViewModel.Dialog.ReadingModeSelect -> {

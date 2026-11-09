@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,16 +23,16 @@ import tachiyomi.i18n.at.ATMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
- * Data wipe section of the reader translation sheet: per-page reset rows —
- * translation output with manual edits preserved, and full page
- * invalidation — each gated behind a confirm dialog.
+ * Item-level data wipe section of the reader translation sheet:
+ * single unified delete action with cascading removal of downloaded page,
+ * translation, cleaned, and colored images.
  */
 @Composable
 internal fun TranslationResetSection(
-    onResetTranslationData: () -> Unit,
-    onResetOcrData: () -> Unit,
+    isPageShared: Boolean = false,
+    onDeletePageData: () -> Unit,
 ) {
-    var pendingReset by remember { mutableStateOf<ResetTarget?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     SectionHeading(title = stringResource(ATMR.strings.reader_translation_section_reset))
 
@@ -43,56 +43,44 @@ internal fun TranslationResetSection(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         TranslationActionRow(
-            icon = Icons.Outlined.EditNote,
-            title = stringResource(ATMR.strings.reader_data_reset_keep_edits),
-            subtitle = stringResource(ATMR.strings.reader_translation_reset_summary),
-            onClick = { pendingReset = ResetTarget.TRANSLATION },
-        )
-        TranslationActionRow(
             icon = Icons.Outlined.DeleteOutline,
-            title = stringResource(ATMR.strings.reader_data_reset_page),
+            title = stringResource(ATMR.strings.action_delete_page_data),
             subtitle = stringResource(ATMR.strings.reader_translation_reset_summary),
-            onClick = { pendingReset = ResetTarget.PAGE },
+            onClick = { showConfirmDialog = true },
             danger = true,
         )
     }
 
-    pendingReset?.let { target ->
+    if (showConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { pendingReset = null },
-            title = { Text(stringResource(ATMR.strings.reader_data_reset_confirm_title)) },
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text(stringResource(ATMR.strings.reader_delete_page_confirm_title)) },
             text = {
-                Text(stringResource(ATMR.strings.reader_data_reset_confirm_message, target.label()))
+                Text(
+                    stringResource(
+                        if (isPageShared) ATMR.strings.reader_delete_page_confirm_message_shared
+                        else ATMR.strings.reader_delete_page_confirm_message,
+                    ),
+                )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingReset = null
-                        when (target) {
-                            ResetTarget.TRANSLATION -> onResetTranslationData()
-                            ResetTarget.PAGE -> onResetOcrData()
-                        }
+                        showConfirmDialog = false
+                        onDeletePageData()
                     },
-                ) { Text(stringResource(ATMR.strings.action_reset)) }
+                ) {
+                    Text(
+                        stringResource(MR.strings.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pendingReset = null }) {
+                TextButton(onClick = { showConfirmDialog = false }) {
                     Text(stringResource(MR.strings.action_cancel))
                 }
             },
         )
     }
 }
-
-private enum class ResetTarget {
-    TRANSLATION,
-    PAGE,
-}
-
-@Composable
-private fun ResetTarget.label(): String = stringResource(
-    when (this) {
-        ResetTarget.TRANSLATION -> ATMR.strings.reader_data_reset_keep_edits
-        ResetTarget.PAGE -> ATMR.strings.reader_data_reset_page
-    },
-)

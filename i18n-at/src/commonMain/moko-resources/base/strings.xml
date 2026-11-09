@@ -205,6 +205,13 @@
     <string name="reader_data_reset_keep_edits">Reset translation output (keep edits)</string>
     <string name="reader_data_reset_page">Reset page</string>
     <string name="action_reset">Reset</string>
+    <string name="action_delete_page_data">Delete Page &amp; Data</string>
+    <string name="reader_delete_page_confirm_title">Delete Page &amp; Artifacts?</string>
+    <string name="reader_delete_page_confirm_message">The following items for this page will be deleted:\n• Downloaded page image\n• Translation &amp; OCR data\n• Cleaned (inpainted) image\n• Colored image\n\nThis cannot be undone.</string>
+    <string name="reader_delete_page_confirm_message_shared">The following items for this page will be deleted:\n• Translation &amp; OCR data\n• Cleaned (inpainted) image\n• Colored image\n\nNote: Original image is shared with split page and will be kept on disk.\n\nThis cannot be undone.</string>
+    <string name="reader_tab_translation">Translation</string>
+    <string name="reader_tab_display">Display</string>
+    <string name="reader_tab_data">Data</string>
 
     <!-- Translator floater preferences -->
     <string name="pref_floater_show">Show translator floater</string>

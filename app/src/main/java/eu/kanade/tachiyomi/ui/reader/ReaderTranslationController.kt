@@ -579,6 +579,8 @@ internal class ReaderTranslationController(
     internal fun deleteCurrentChapterTranslation() = actions.deleteCurrentChapterTranslation()
     internal fun resetTranslationData() = actions.resetTranslationData()
     internal fun resetOcrData() = actions.resetOcrData()
+    internal fun deleteCurrentPageData() = actions.deleteCurrentPageData()
+    internal fun isCurrentPageShared(): Boolean = actions.isCurrentPageShared()
     internal fun translateSinglePage(page: ReaderPage, force: Boolean? = null) = actions.translateSinglePage(page, force)
     internal fun confirmPageRetranslation(page: ReaderPage) = actions.confirmPageRetranslation(page)
 

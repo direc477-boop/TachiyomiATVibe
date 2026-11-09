@@ -192,17 +192,26 @@ object TranslationUiTruth {
             contentDescription = "Chapter translation failed; retry is available.",
         )
         Translation.State.QUEUE, Translation.State.TRANSLATING -> PageUiTruth(
-            label = "Translating.",
+            label = if (snapshot?.colorizeOnly == true) "Coloring." else "Translating.",
             severity = UiSeverity.PROGRESS,
             retryMode = UiRetryMode.NONE,
             retryAtEpochMs = null,
             actions = setOf(UiAction.DETAILS, UiAction.CANCEL),
             terminalSuccess = false,
             contentDescription = if (snapshot != null && snapshot.expectedPageCountTrusted) {
-                "Chapter translation in progress; " +
-                    "${snapshot.donePages.coerceAtLeast(0)} of ${snapshot.totalPages} pages translated."
+                if (snapshot.colorizeOnly) {
+                    "Chapter colorization in progress; " +
+                        "${snapshot.donePages.coerceAtLeast(0)} of ${snapshot.totalPages} pages colored."
+                } else {
+                    "Chapter translation in progress; " +
+                        "${snapshot.donePages.coerceAtLeast(0)} of ${snapshot.totalPages} pages translated."
+                }
             } else {
-                "Chapter translation in progress."
+                if (snapshot?.colorizeOnly == true) {
+                    "Chapter colorization in progress."
+                } else {
+                    "Chapter translation in progress."
+                }
             },
         )
         Translation.State.NOT_TRANSLATED -> PageUiTruth(
@@ -255,7 +264,7 @@ object TranslationUiTruth {
         page.stage == TranslationProgressStage.OCR -> "Reading text."
         page.stage == TranslationProgressStage.TRANSLATE -> "Translating text."
         page.stage == TranslationProgressStage.INPAINT -> "Cleaning bubbles."
-        page.stage == TranslationProgressStage.COLORING -> "Coloring page."
+        page.stage == TranslationProgressStage.COLORING -> "Coloring."
         page.stage == TranslationProgressStage.RENDER -> "Finishing page."
         else -> "Translation pending."
     }
@@ -833,6 +842,10 @@ object TranslationUiTruth {
             kind = BatchStatusLineKind.FIRST_PASS_STAGES,
             fallback = "Cleaning speech bubbles...",
         )
+        snapshot.colorizeOnly || snapshot.activeStages.contains(TranslationProgressStage.COLORING) -> BatchStatusLine(
+            kind = BatchStatusLineKind.FIRST_PASS_STAGES,
+            fallback = "Coloring page...",
+        )
         snapshot.activeStages.contains(TranslationProgressStage.RENDER) -> BatchStatusLine(
             kind = BatchStatusLineKind.FIRST_PASS_STAGES,
             fallback = "Rendering English text overlays...",
@@ -841,7 +854,11 @@ object TranslationUiTruth {
             is BatchHeroProjection.Numeric -> BatchStatusLine(
                 kind = BatchStatusLineKind.FIRST_PASS_PAGES,
                 formatArgs = listOf(snapshot.donePages, snapshot.totalPages),
-                fallback = "Translating pages (${snapshot.donePages}/${snapshot.totalPages})",
+                fallback = if (snapshot.colorizeOnly) {
+                    "Coloring pages (${snapshot.donePages}/${snapshot.totalPages})"
+                } else {
+                    "Translating pages (${snapshot.donePages}/${snapshot.totalPages})"
+                },
             )
             is BatchHeroProjection.Phase -> BatchStatusLine(
                 kind = BatchStatusLineKind.FIRST_PASS_STAGES,

@@ -761,42 +761,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     private fun SubsamplingScaleImageView.landscapeZoom(forward: Boolean) {
-        if (
-            config != null &&
-            config!!.landscapeZoom &&
-            config!!.minimumScaleType == SCALE_TYPE_CENTER_INSIDE &&
-            sWidth > sHeight &&
-            scale == minScale
-        ) {
-            val selectedView = this
-            val selectedHandler = handler ?: return
-            val callbackFence = ReaderImageCallbackFence(imageGeneration, selectedView)
-            cancelLandscapeZoom()
-            val runnable = Runnable {
-                landscapeZoomRunnable = null
-                landscapeZoomHandler = null
-                callbackFence.dispatchIfCurrent(imageGeneration, pageView as? SubsamplingScaleImageView) {
-                    val currentConfig = this@ReaderPageImageView.config
-                    if (currentConfig != null) {
-                        val point = when (currentConfig.zoomStartPosition) {
-                            ZoomStartPosition.LEFT -> if (forward) PointF(0F, 0F) else PointF(selectedView.sWidth.toFloat(), 0F)
-                            ZoomStartPosition.RIGHT -> if (forward) PointF(selectedView.sWidth.toFloat(), 0F) else PointF(0F, 0F)
-                            ZoomStartPosition.CENTER -> selectedView.center
-                        }
-
-                        val targetScale = selectedView.height.toFloat() / selectedView.sHeight.toFloat()
-                        selectedView.animateScaleAndCenter(targetScale, point)!!
-                            .withDuration(500)
-                            .withEasing(EASE_IN_OUT_QUAD)
-                            .withInterruptible(true)
-                            .start()
-                    }
-                }
-            }
-            landscapeZoomRunnable = runnable
-            landscapeZoomHandler = selectedHandler
-            selectedHandler.postDelayed(runnable, 500L)
-        }
+        // Wide and landscape images remain static at fit-screen scale without auto-zooming.
+        cancelLandscapeZoom()
     }
 
     fun setImage(drawable: Drawable, config: Config) {

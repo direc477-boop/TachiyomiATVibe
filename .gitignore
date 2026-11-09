@@ -1,4 +1,4 @@
-# Build files
+﻿# Build files
 .gradle
 .kotlin
 build
@@ -27,7 +27,7 @@ logs/
 .codex-remote-attachments/
 .codex/
 
-# Local agent state — agent tooling/runtime dirs, not project code
+# Local agent state â€” agent tooling/runtime dirs, not project code
 .kilo/
 .zcode/
 .agents/
@@ -77,3 +77,6 @@ kilo.json
 /app/src/main/assets/models/**
 !/app/src/main/assets/models/**/
 !/app/src/main/assets/models/**/.gitkeep
+
+# Local staged model artifacts (provisioned via -Pmodels.* flags; hash-pinned, never committed)
+/models_local/

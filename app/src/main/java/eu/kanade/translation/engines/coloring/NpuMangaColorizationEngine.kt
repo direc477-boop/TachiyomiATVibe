@@ -171,18 +171,24 @@ internal class NpuMangaColorizationEngine(
             private fun extractModel(context: Context): Artifact? {
                 val assetPath = MODEL_ASSET
                 val fileName = MODEL_FILE_NAME
+                val destination = File(context.noBackupFilesDir, "$MODEL_CACHE_DIR/$fileName")
                 val assetExists = try {
                     context.assets.open(assetPath).use { }
                     true
                 } catch (_: FileNotFoundException) {
                     false
                 }
-                if (!assetExists) return null
+                if (!assetExists) {
+                    return if (destination.isFile && destination.length() > 0L) {
+                        Artifact(destination, MangaColorizationModelStore.sha256Of(destination))
+                    } else {
+                        null
+                    }
+                }
 
                 val assetLength = runCatching {
                     context.assets.openFd(assetPath).use { it.length }
                 }.getOrNull()
-                val destination = File(context.noBackupFilesDir, "$MODEL_CACHE_DIR/$fileName")
                 destination.parentFile?.mkdirs()
                 val preferences = context.getSharedPreferences(MODEL_CACHE_PREFERENCES, Context.MODE_PRIVATE)
                 val appUpdateTime = runCatching {

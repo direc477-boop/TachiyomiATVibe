@@ -126,14 +126,108 @@ If upstream Mihon introduces a new format (e.g., `index_v3` or FlatBuffers):
 
 ---
 
-## 6. Modern OkHttp 5 & Extension Classloading
+## 6. Modern OkHttp 5 & Compression Pipeline
 
-Modern extensions (e.g., compiled against `tachiyomix:1.6+` or Keiyoushi's latest generator) make direct use of OkHttp 5 features:
-1. **`okhttp3.CompressionInterceptor` and Algorithm Objects**:
-   - Extensions configure their custom `getClient()` lazy instance with `okhttp3.CompressionInterceptor(okhttp3.Gzip, okhttp3.brotli.Brotli, ...)`.
-   - The host app bundles these implementations in `core:common` (`okhttp3/CompressionInterceptor.kt`, `Gzip.kt`, `brotli/Brotli.kt`, `Deflate.kt`, `Zstd.kt`).
-   - When `ChildFirstPathClassLoader` fails to find the class in the extension APK, it resolves it from the host app DEX.
-2. **Defensive Error Handling for Coroutines**:
-   - Extension invocations (`getFilterList()`, `getSearchManga()`, `getPopularManga()`) can throw `LinkageError` (e.g. `NoClassDefFoundError`, `NoSuchMethodError`).
-   - Because `LinkageError` extends `java.lang.Error` (not `java.lang.Exception`), UI coroutine callers must catch `CancellationException` first (to rethrow) and `Throwable` second to prevent crashing the entire process.
+Modern extensions (compiled against `tachiyomix:1.6+` or Keiyoushi's latest pipeline) make direct use of OkHttp 5 features and modern compression:
+
+### 6.1 `okhttp3.CompressionInterceptor` and Algorithm Objects
+* **Background:** Extensions configure their custom `getClient()` lazy instance with `okhttp3.CompressionInterceptor(okhttp3.Gzip, okhttp3.brotli.Brotli, okhttp3.Deflate, okhttp3.zstd.Zstd)`.
+* **Host App Architecture:** The host app bundles these implementations in `core:common` (`okhttp3/CompressionInterceptor.kt`, `Gzip.kt`, `brotli/Brotli.kt`, `Deflate.kt`, `Zstd.kt`).
+* **ClassLoader Resolution:** When an extension is loaded in a sandboxed `ChildFirstPathClassLoader`, any classes omitted from the extension APK resolve automatically from the host app DEX via classloader parent delegation.
+* **Network Helper Invariant:** Extensions explicitly validate that `IgnoreGzipInterceptor` and `BrotliInterceptor` are **NOT** present in the base `OkHttpClient`. In `NetworkHelper.kt`, the default client must leave compression handling to `CompressionInterceptor`.
+
+### 6.2 Square Okio Zstandard Bridge (`com.squareup.zstd.okio.OkioZstd`)
+* **Symptom:** Fatal crash on search/fetch with:
+  `java.lang.NoClassDefFoundError: Failed resolution of: Lcom/squareup/zstd/okio/OkioZstd;`
+* **Root Cause:** Certain extensions (e.g., `allporncomicsco`, `mangageko`) are built with Square's multiplatform `zstd-kmp-okio` (`com.squareup.zstd.okio.OkioZstdKt`), which calls `Source.zstdDecompress()` and `Sink.zstdCompress()`. The extension APK does not bundle this dependency.
+* **Implementation:** `core/common/src/main/kotlin/com/squareup/zstd/okio/OkioZstd.kt` provides the exact package and class signature:
+  ```kotlin
+  @file:JvmName("OkioZstd")
+  package com.squareup.zstd.okio
+
+  import com.github.luben.zstd.ZstdInputStream
+  import com.github.luben.zstd.ZstdOutputStream
+  import okio.Sink
+  import okio.Source
+  import okio.buffer
+  import okio.sink
+  import okio.source
+
+  fun Source.zstdDecompress(): Source = ZstdInputStream(buffer().inputStream()).source()
+  fun Sink.zstdCompress(): Sink = ZstdOutputStream(buffer().outputStream()).sink()
+  ```
+* **Native Backend:** Decompression is backed by `com.github.luben:zstd-jni:1.5.6-8@aar` via JNI across all supported ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`).
+
+---
+
+## 7. Extension-lib 1.6 (`tachiyomix:1.6+`) Contract & Migration
+
+Extensions compiled with `tachiyomix:1.6+` depart significantly from legacy 1.2–1.4 extension APIs. The host app provides backwards and forwards compatibility bridges:
+
+### 7.1 `getMangaUpdate` vs. Legacy Abstract Parsing
+* **Symptom:** Non-fatal or swallowed crash during global search or manga details fetch:
+  `java.lang.AbstractMethodError: abstract method "eu.kanade.tachiyomi.source.model.SManga eu.kanade.tachiyomi.source.online.HttpSource.mangaDetailsParse(okhttp3.Response)" on receiver java.lang.Class<keiyoushi.source.Generated>`
+* **Root Cause:** Modern sources override coroutine-based `getMangaUpdate(SManga, Boolean): SMangaUpdate`. They do **not** override legacy RxJava `mangaDetailsParse(Response)` or `chapterListParse(Response)`. If `HttpSource` declares those methods `abstract`, ART throws `AbstractMethodError` at runtime.
+* **Architecture Fix:**
+  1. `SMangaUpdate` data class is defined in `source-api/src/commonMain/kotlin/eu/kanade/tachiyomi/source/model/SMangaUpdate.kt`:
+     ```kotlin
+     data class SMangaUpdate(
+         val manga: SManga,
+         val chapters: List<SChapter>,
+     )
+     ```
+  2. In `eu.kanade.tachiyomi.source.Source`, `getMangaUpdate` is declared with default fallback delegating to `getMangaDetails` and `getChapterList`.
+  3. In `HttpSource.kt`, `mangaDetailsParse` and `chapterListParse` are declared `open` (not `abstract`) with safe empty fallback implementations.
+  4. In `HttpSource.kt`, `getMangaDetails` and `getChapterList` check and delegate to `getMangaUpdate`:
+     ```kotlin
+     override suspend fun getMangaDetails(manga: SManga): SManga =
+         getMangaUpdate(manga, needsDetails = true).manga
+
+     override suspend fun getChapterList(manga: SManga): List<SChapter> =
+         getMangaUpdate(manga, needsDetails = false).chapters
+     ```
+
+### 7.2 Concurrency & Mutex Protection
+* **Symptom:** Extension throws `IllegalStateException: getMangaUpdate must not be called concurrently for same manga`.
+* **Root Cause:** When opening manga details, `MangaScreenModel` traditionally triggered `fetchMangaFromSource()` and `fetchChaptersFromSource()` in parallel via `async`/`launch`. Because both call `getMangaUpdate` on the same manga instance, the extension's internal concurrency assertion failed.
+* **Resolution:**
+  1. **Serialized Execution:** `MangaScreenModel.kt` executes manga details and chapter list sequentially: `fetchMangaFromSource(manualFetch = true)` is awaited before initiating chapter fetches.
+  2. **URL-Keyed Mutex:** `HttpSource.kt` maintains a per-manga `ConcurrentHashMap<String, Mutex>()`. Calls to `getMangaUpdate` acquire the lock for that manga's `url`, guaranteeing that parallel requests queue safely instead of aborting.
+
+### 7.3 `SManga.memo` and `SChapter.memo` (`JsonObject`)
+* **Symptom:** Crash on search or browsing with `NoSuchMethodError: setMemo` or `getMemo`.
+* **Root Cause:** Modern extensions attach structured JSON metadata memos to `SManga` and `SChapter`.
+* **Resolution:**
+  - Added `var memo: kotlinx.serialization.json.JsonObject` to `SManga.kt` and `SChapter.kt`.
+  - Implemented with default empty `JsonObject(emptyMap())` in `SMangaImpl.kt`, `SChapterImpl.kt`, and `domain/ChapterImpl.kt`.
+
+---
+
+## 8. Defensive LinkageError Isolation in UI & Coroutines
+
+Extensions execute untrusted third-party bytecode inside the host process. When an extension references a missing class or method, the Android runtime throws `java.lang.LinkageError` (e.g. `NoClassDefFoundError`, `NoSuchMethodError`, `AbstractMethodError`).
+
+* **CRITICAL:** `LinkageError` extends `java.lang.Error`, **not** `java.lang.Exception`. Standard `try { ... } catch (e: Exception)` blocks will **not** catch it.
+* **Coroutines Rule:** Always rethrow `CancellationException` first, then catch `Throwable` to insulate the app process:
+  ```kotlin
+  try {
+      source.getSearchManga(page, query, filters)
+  } catch (e: CancellationException) {
+      throw e
+  } catch (e: Throwable) {
+      logcat(LogPriority.ERROR, e) { "Source ${source.name} failed during search" }
+      emptyList()
+  }
+  ```
+* This isolation prevents a single malfunctioning or outdated extension from crashing global search, browsing, or library updates.
+
+---
+
+## 9. Native & Hardware Acceleration Staging (Qualcomm QNN / LiteRT)
+
+When testing or running features that interact with native runtimes (e.g., MCV2 NPU colorization, LiteRT GPU/NPU delegates, ONNX Runtime):
+1. **Qualcomm QNN Dispatch Libraries:** Fast debug builds must include `libQnnHtp.so`, `libQnnHtpV75Skel.so`, `libQnnHtpV75Stub.so`, and `libQnnSystem.so` (version 2.28+ / System API >= 1.14).
+2. **Auto-Staging in Gradle:** `app/build.gradle.kts` automatically defaults `models.mcv2.npu.libs` to `models_local/qnn-libs` when the directory is present.
+3. **Runtime Prechecks:** Colorization engines perform `dispatchPrecheck()` before calling native LiteRT delegates. If an outdated 2.68 MB `libQnnSystem.so` from third-party AARs is detected, execution fails gracefully with an actionable error rather than triggering a native `SIGABRT`.
+4. **On-Disk Model Fallbacks:** When builds are generated with `-Pmodels.exclude=true`, `NpuMangaColorizationEngine` and `LiteRTMangaInpaintingEngine` check `context.noBackupFilesDir` for existing on-device cached models before failing.
 

@@ -18,7 +18,8 @@ plugins {
 
 shortcutHelper.setFilePath("./shortcuts.xml")
 
-val supportedAbis = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+val targetAbi = providers.gradleProperty("target.abi").orNull
+val supportedAbis = if (targetAbi != null) setOf(targetAbi) else setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 val buildTime = providers.gradleProperty("validationBuildTime").orNull ?: getBuildTime()
 
 android {
@@ -54,15 +55,23 @@ android {
 
     splits {
         abi {
-            isEnable = true
+            isEnable = targetAbi == null
             reset()
-            include(*supportedAbis.toTypedArray())
-            isUniversalApk = true
+            if (targetAbi == null) {
+                include(*supportedAbis.toTypedArray())
+                isUniversalApk = true
+            }
         }
     }
 
     androidResources {
         noCompress += listOf("tflite", "gz")
+        val excludeModels = providers.gradleProperty("models.exclude").orNull?.toBoolean()
+            ?: providers.gradleProperty("models.skip").orNull?.toBoolean()
+            ?: false
+        if (excludeModels) {
+            ignoreAssetsPattern = "models:!.svn:!.git:.*:!CVS"
+        }
     }
 
     signingConfigs {
@@ -897,6 +906,7 @@ val fetchModels by tasks.registering {
             workingDir(rootDir)
         }
     }
+    onlyIf { providers.gradleProperty("models.exclude").orNull?.toBoolean() != true }
 }
 
 tasks.configureEach {

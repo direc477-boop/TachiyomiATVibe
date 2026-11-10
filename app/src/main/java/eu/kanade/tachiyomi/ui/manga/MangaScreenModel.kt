@@ -181,11 +181,8 @@ class MangaScreenModel(
     fun fetchAllFromSource(manualFetch: Boolean = true) {
         screenModelScope.launch {
             updateSuccessState { it.copy(isRefreshingData = true) }
-            val fetchFromSourceTasks = listOf(
-                async { fetchMangaFromSource(manualFetch) },
-                async { fetchChaptersFromSource(manualFetch) },
-            )
-            fetchFromSourceTasks.awaitAll()
+            fetchMangaFromSource(manualFetch)
+            fetchChaptersFromSource(manualFetch)
             updateSuccessState { it.copy(isRefreshingData = false) }
         }
     }
@@ -594,11 +591,8 @@ class MangaScreenModel(
 
             // Fetch info-chapters when needed
             if (screenModelScope.isActive) {
-                val fetchFromSourceTasks = listOf(
-                    async { if (needRefreshInfo) fetchMangaFromSource() },
-                    async { if (needRefreshChapter) fetchChaptersFromSource() },
-                )
-                fetchFromSourceTasks.awaitAll()
+                if (needRefreshInfo) fetchMangaFromSource()
+                if (needRefreshChapter) fetchChaptersFromSource()
             }
 
             // Initial loading finished

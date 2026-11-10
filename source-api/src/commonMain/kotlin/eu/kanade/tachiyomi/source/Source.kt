@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.source
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.util.awaitSingle
 import rx.Observable
 
@@ -34,6 +35,28 @@ interface Source {
     @Suppress("DEPRECATION")
     suspend fun getMangaDetails(manga: SManga): SManga {
         return fetchMangaDetails(manga).awaitSingle()
+    }
+
+    /**
+     * Get the updated details for a manga and its chapters.
+     *
+     * @since extensions-lib 1.6
+     * @param manga the manga to update.
+     * @param chapters the existing chapters of the manga.
+     * @param fetchDetails whether to fetch the manga details.
+     * @param fetchChapters whether to fetch the chapter list.
+     * @return the updated manga and chapters.
+     */
+    @Suppress("DEPRECATION")
+    suspend fun getMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val newManga = if (fetchDetails) getMangaDetails(manga) else manga
+        val newChapters = if (fetchChapters) getChapterList(manga) else chapters
+        return SMangaUpdate(newManga, newChapters)
     }
 
     /**

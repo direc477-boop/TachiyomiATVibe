@@ -108,4 +108,35 @@ class ExtensionLoaderCompatibilityTest {
         decoded.extensionList?.extensions?.size shouldBe 1
         decoded.extensionList?.extensions?.first()?.packageName shouldBe "eu.kanade.tachiyomi.extension.en.test"
     }
+
+    @Test
+    fun `SManga and SChapter have setMemo and getMemo methods matching extension-api`() {
+        val manga = eu.kanade.tachiyomi.source.model.SManga.create()
+        val testMemo = kotlinx.serialization.json.buildJsonObject {
+            put("testKey", kotlinx.serialization.json.JsonPrimitive("testValue"))
+        }
+
+        // Test direct setter and getter
+        manga.memo = testMemo
+        manga.memo shouldBe testMemo
+
+        // Verify interface method setMemo exists via reflection (prevents NoSuchMethodError)
+        val setMemoMethod = eu.kanade.tachiyomi.source.model.SManga::class.java.getMethod(
+            "setMemo",
+            kotlinx.serialization.json.JsonObject::class.java,
+        )
+        setMemoMethod.invoke(manga, testMemo)
+        manga.memo shouldBe testMemo
+
+        val chapter = eu.kanade.tachiyomi.source.model.SChapter.create()
+        chapter.memo = testMemo
+        chapter.memo shouldBe testMemo
+
+        val chapterSetMemoMethod = eu.kanade.tachiyomi.source.model.SChapter::class.java.getMethod(
+            "setMemo",
+            kotlinx.serialization.json.JsonObject::class.java,
+        )
+        chapterSetMemoMethod.invoke(chapter, testMemo)
+        chapter.memo shouldBe testMemo
+    }
 }

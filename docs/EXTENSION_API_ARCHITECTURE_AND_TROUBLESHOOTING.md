@@ -12,6 +12,8 @@ This guide documents the architecture, repository indexing protocol, and trouble
 | **Only dummy/stub extensions show** (e.g. "Update to Mihon 0.20.1+"). | Modern endpoints failed and app fell back to deprecated `index.min.json`. | `ExtensionApi.kt` | Check logcat for `index.pb` or `index.json` HTTP errors (e.g., 404, redirect, SSL, format mismatch). |
 | **Extensions install but do not show in Sources** tab. | `libVersion` mismatch or Bundle meta-data float parsing failure. | `ExtensionLoader.kt` | Ensure `appInfo.metaData?.getFloat(METADATA_LIB_VERSION)` fallback is active and within `LIB_VERSION_MIN`..`LIB_VERSION_MAX`. |
 | **Extension installation fails** or hangs at "Installing". | Android `PackageInstaller` session error or scoped storage access permission issue. | `PackageInstallerInstaller.kt`, `ExtensionInstaller.kt` | Check `logcat -s PackageInstallerInstaller` for `EXTRA_STATUS` code and message. |
+| **Crash with `NoSuchMethodError: setMemo`** when searching or browsing sources. | Extension compiled against `tachiyomix:1.6` expects `SManga.setMemo` / `SChapter.setMemo` (`JsonObject`). | `SManga.kt`, `SMangaImpl.kt`, `SChapter.kt`, `SChapterImpl.kt`, `ChapterImpl.kt` | Implement `var memo: JsonObject` with default `JsonObject(emptyMap())` on `SManga` and `SChapter`. |
+| **Crash or failure with `IgnoreGzipInterceptor must not be present in default client`**. | Modern extensions require default `OkHttpClient` to not bundle `IgnoreGzipInterceptor` or `BrotliInterceptor`. | `NetworkHelper.kt` | Remove `IgnoreGzipInterceptor()` and `BrotliInterceptor` from `NetworkHelper.client`. |
 
 ---
 

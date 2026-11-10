@@ -619,9 +619,11 @@ fun verifyAsset(apkName: String, zip: ZipFile, relativePath: String, expectedSha
 // TachiyomiAT: the experimental SM8650 NPU route stages its artifact and QNN
 // libraries from local files (-Pmodels.mcv2.npu.w8a8 / -Pmodels.mcv2.npu.libs),
 // each byte-verified against the device-validated handoff so bad staging fails the build.
+val defaultNpuLibs = rootProject.file("models_local/qnn-libs")
 val mcv2NpuW8a8ModelPath = providers.gradleProperty("models.mcv2.npu.w8a8")
 val upscalingNpuModelPath = providers.gradleProperty("models.upscaling.npu")
 val mcv2NpuLibraryDirectoryPath = providers.gradleProperty("models.mcv2.npu.libs")
+    .orElse(providers.provider { if (defaultNpuLibs.isDirectory) "models_local/qnn-libs" else null })
 val mcv2NpuAssetDirectory = layout.buildDirectory.dir("generated/mcv2-npu-debug-assets")
 val mcv2NpuJniLibsDirectory = layout.buildDirectory.dir("generated/mcv2-npu-jniLibs")
 android.sourceSets.getByName("debug").assets.srcDir(mcv2NpuAssetDirectory)

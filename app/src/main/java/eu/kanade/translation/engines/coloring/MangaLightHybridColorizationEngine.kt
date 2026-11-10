@@ -22,6 +22,8 @@ internal class MangaLightHybridColorizationEngine(private val context: Context) 
         if (initialized) return session != null
         initialized = true
         return try {
+            val precheck = dispatchPrecheck(File(context.applicationInfo.nativeLibraryDir))
+            check(precheck == null) { precheck ?: "Qualcomm NPU runtime unavailable" }
             session = Session.open(context, ARTIFACTS.map { extract(it) })
             error = null
             true
@@ -195,6 +197,26 @@ internal class MangaLightHybridColorizationEngine(private val context: Context) 
     private data class Artifact(val name: String, val bytes: Long, val sha256: String)
 
     companion object {
+        val REQUIRED_LIBRARIES = listOf(
+            "libQnnHtp.so",
+            "libQnnSystem.so",
+            "libQnnHtpV75Stub.so",
+            "libQnnHtpV75Skel.so",
+        )
+
+        internal fun dispatchPrecheck(nativeLibraryDir: File): String? {
+            val missing = REQUIRED_LIBRARIES.filterNot { File(nativeLibraryDir, it).isFile }
+            if (missing.isNotEmpty()) {
+                return "Qualcomm NPU dispatch libraries missing from ${nativeLibraryDir.absolutePath}: " +
+                    missing.joinToString(", ")
+            }
+            val systemLib = File(nativeLibraryDir, "libQnnSystem.so")
+            if (systemLib.length() == 2_689_368L) {
+                return "Qualcomm QNN system library is the outdated 1.7.0 version; requires QNN >= 1.14"
+            }
+            return null
+        }
+
         private const val SIZE = 512
         private const val SIGNATURE = "serving_default"
         private const val STAMP = "MANGA_LIGHT_SAM_NPU_GPU_FP32_512_v1"

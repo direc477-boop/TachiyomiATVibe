@@ -14,7 +14,10 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.translation.PageColorizeOutcome
 import eu.kanade.translation.TranslationManager
+import eu.kanade.translation.coordinator.ReaderPageWork
 import eu.kanade.translation.coordinator.ReaderSessionToken
+import eu.kanade.translation.coordinator.ReaderSubmission
+import eu.kanade.translation.coordinator.ReaderTrigger
 import eu.kanade.translation.diagnostics.AutoSmoothnessTelemetry
 import eu.kanade.translation.diagnostics.NativeVisionTelemetry
 import eu.kanade.translation.engines.inpainting.litert.LiteRTMangaInpaintingEngine
@@ -35,6 +38,7 @@ import eu.kanade.translation.processing.execution.TranslationStreamRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -217,13 +221,14 @@ internal class ReaderTranslationController(
         val pageKey = resolvePageKey(page)
         val batchActive = chapter.chapter.id?.let { translationManager.isChapterBatchActive(it, includePaused = false) } == true
         if (!batchActive && !isInTranslationWarmWindow(page)) {
+            val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
             page.translatedStream = null
             page.showTranslatedImage = false
             NativeVisionTelemetry.logDisplayAttach(
                 pageKey = pageKey,
                 streamAttached = false,
                 showTranslatedImage = false,
-                displayImageName = page.translation?.displayImageName != null,
+                displayImageName = page.translation?.displayImageName(colorizationEnabled) != null,
             )
             return
         }
@@ -294,7 +299,7 @@ internal class ReaderTranslationController(
             pageKey = pageKey,
             streamAttached = page.translatedStream != null,
             showTranslatedImage = page.showTranslatedImage,
-            displayImageName = translation?.displayImageName != null,
+            displayImageName = displayImage != null,
         )
     }
 
@@ -353,23 +358,52 @@ internal class ReaderTranslationController(
      * viewport without debounce, so async store/source preparation can never
      * drop the newest position. A session bind still in flight dispatches the
      * latest viewport when it completes.
+     *
+     * [kickCurrentPage] submits the initiating page as manual-lane work so a
+     * user-intent dispatch (toggle on, reader entry) cannot be dropped by the
+     * viewport's stale-revision guard when a newer scroll dispatch lands first.
      */
-    internal fun handleAutoTranslation(currentPage: ReaderPage) {
+    internal fun handleAutoTranslation(
+        currentPage: ReaderPage,
+        kickCurrentPage: Boolean = false,
+    ) {
+        if (!translationPreferences.autoTranslate().get() ||
+            !translationPreferences.translationEnabled().get()
+        ) {
+            return
+        }
         if (inpaintModelMissing()) {
             maybeToastAutoInpaintMissing()
             return
         }
         val chapterKey = currentPage.chapter.chapter.id?.toString() ?: return
         readerCoordinator.sessionTokenForChapter(chapterKey)?.let { token ->
-            dispatchViewport(token, currentPage)
+            dispatchViewport(token, currentPage, kickCurrentPage)
             return
         }
+        readerCoordinator.beginSessionPreparation()
         viewModelScope.launchIO {
-            val token = ensureQueueSession(currentPage.chapter) ?: return@launchIO
-            val latestPage = owner.currentPageReaderPage()
-                ?.takeIf { it.chapter === currentPage.chapter }
-                ?: return@launchIO
-            dispatchViewport(token, latestPage)
+            try {
+                if (!translationPreferences.autoTranslate().get() ||
+                    !translationPreferences.translationEnabled().get()
+                ) {
+                    return@launchIO
+                }
+                val token = ensureQueueSession(currentPage.chapter) ?: return@launchIO
+                if (!translationPreferences.autoTranslate().get() ||
+                    !translationPreferences.translationEnabled().get()
+                ) {
+                    return@launchIO
+                }
+                val latestPage = owner.currentPageReaderPage()
+                    ?.takeIf { it.chapter === currentPage.chapter }
+                    ?: return@launchIO
+                dispatchViewport(token, latestPage, kickCurrentPage)
+            } finally {
+                withContext(NonCancellable) {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdle()
+                }
+            }
         }
     }
 
@@ -414,8 +448,17 @@ internal class ReaderTranslationController(
      * Arms the auto window demand set (exactly N, N+1) on the captured session
      * for the latest viewport. Rebinding the resolver keeps already-issued
      * stream handles valid when the reader replaced its page list.
+     *
+     * [kickCurrentPage] additionally submits the visible page through the
+     * manual lane, whose work survives both a stale-revision dispatch drop and
+     * the next viewport window trim — the viewport lanes alone are advisory
+     * prefetch and may be superseded mid-flight by a scroll.
      */
-    private fun dispatchViewport(token: ReaderSessionToken, currentPage: ReaderPage) {
+    private fun dispatchViewport(
+        token: ReaderSessionToken,
+        currentPage: ReaderPage,
+        kickCurrentPage: Boolean = false,
+    ) {
         val session = readerCoordinator.sessionFor(token) ?: return
         val pages = currentPage.chapter.pages ?: return
         val currentIndex = pages.indexOfFirst { it === currentPage }
@@ -432,6 +475,37 @@ internal class ReaderTranslationController(
             pageCount = pages.size,
             resolve = resolve,
         )
+        if (kickCurrentPage) {
+            kickCurrentPageNow(token, currentIndex, resolve, currentPage)
+        }
+    }
+
+    /**
+     * Submits the initiating page as foreground demand. A scroll that lands
+     * before the window dispatch runs drops the window enqueue entirely, so
+     * without this lane the page the action started on is never enqueued.
+     */
+    private fun kickCurrentPageNow(
+        token: ReaderSessionToken,
+        pageIndex: Int,
+        resolve: (Int) -> ReaderPageWork?,
+        page: ReaderPage,
+    ) {
+        viewModelScope.launchIO {
+            val work = resolve(pageIndex) ?: run {
+                logcat(LogPriority.INFO) {
+                    "TachiyomiAT auto-toggle kick: page ${page.index} stream not ready; " +
+                        "loader readiness reconcile will re-drive it"
+                }
+                return@launchIO
+            }
+            when (val submission = readerCoordinator.submitPage(token, work, ReaderTrigger.MANUAL_TAP)) {
+                is ReaderSubmission.Rejected -> logcat(LogPriority.WARN) {
+                    "TachiyomiAT auto-toggle kick rejected for ${work.pageKey}: ${submission.outcome}"
+                }
+                else -> Unit
+            }
+        }
     }
 
     /**
@@ -515,16 +589,19 @@ internal class ReaderTranslationController(
     /**
      * Translates just the page the user is currently viewing. Used when the
      * Auto toggle is switched ON so the current page starts processing
-     * immediately, instead of waiting for the next page-change event.
+     * immediately, instead of waiting for the next page-change event. The
+     * manual-lane kick keeps that promise even when a quick scroll supersedes
+     * the viewport dispatch while session preparation is still in flight.
      */
     internal fun translateCurrentPageForAuto() {
         val pages = getCurrentChapter()?.pages ?: return
         val page = pages.getOrNull(chapterPageIndex) as? ReaderPage ?: return
-        handleAutoTranslation(page)
+        handleAutoTranslation(page, kickCurrentPage = true)
     }
 
     /** Reader auto-toggle transition; explicit taps remain in the captured session after auto-off. */
     internal fun onReaderAutoToggled(enabled: Boolean) {
+        if (enabled && !translationPreferences.translationEnabled().get()) return
         val chapterKey = getCurrentChapter()?.chapter?.id?.toString() ?: return
         if (enabled && inpaintModelMissing()) {
             // The UI switch is bound to the pref; revert it so Auto stays off.
@@ -552,14 +629,31 @@ internal class ReaderTranslationController(
      * current page through the same viewport path.
      */
     internal fun rebindForComputeEpochChange() {
+        if (!translationPreferences.autoTranslate().get() ||
+            !translationPreferences.translationEnabled().get()
+        ) {
+            return
+        }
+        readerCoordinator.beginSessionPreparation()
         viewModelScope.launchIO {
-            if (translationPreferences.autoTranslate().get() &&
-                translationPreferences.translationEnabled().get()
-            ) {
-                val chapter = getCurrentChapter() ?: return@launchIO
-                val token = ensureQueueSession(chapter) ?: return@launchIO
-                val currentPage = owner.currentPageReaderPage() ?: return@launchIO
-                if (currentPage.chapter === chapter) dispatchViewport(token, currentPage)
+            try {
+                if (translationPreferences.autoTranslate().get() &&
+                    translationPreferences.translationEnabled().get()
+                ) {
+                    val chapter = getCurrentChapter() ?: return@launchIO
+                    val token = ensureQueueSession(chapter) ?: return@launchIO
+                    if (!translationPreferences.autoTranslate().get() ||
+                        !translationPreferences.translationEnabled().get()
+                    ) {
+                        return@launchIO
+                    }
+                    val currentPage = owner.currentPageReaderPage() ?: return@launchIO
+                    if (currentPage.chapter === chapter) dispatchViewport(token, currentPage, kickCurrentPage = true)
+                }
+            } finally {
+                withContext(NonCancellable) {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdle()
+                }
             }
         }
     }

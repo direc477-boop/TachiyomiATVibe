@@ -260,7 +260,7 @@ internal class ReaderNavigationController(private val owner: ReaderViewModel) {
                     .coerceAtMost((pages?.lastIndex ?: 0))
                 val landingPage = pages?.getOrNull(landingIndex) as? ReaderPage
                 if (landingPage != null) {
-                    handleAutoTranslation(landingPage)
+                    handleAutoTranslation(landingPage, kickCurrentPage = true)
                 }
             }
             if (translationPreferences.translationColorizationEnabled().get() &&
@@ -478,8 +478,10 @@ internal class ReaderNavigationController(private val owner: ReaderViewModel) {
         eventChannel.trySend(ReaderViewModel.Event.PageChanged)
     }
 
-    private fun handleAutoTranslation(currentPage: ReaderPage) =
-        translationController.handleAutoTranslation(currentPage)
+    private fun handleAutoTranslation(
+        currentPage: ReaderPage,
+        kickCurrentPage: Boolean = false,
+    ) = translationController.handleAutoTranslation(currentPage, kickCurrentPage)
 
     private fun handleAutoColorize(currentPage: ReaderPage) =
         translationController.handleAutoColorize(currentPage)

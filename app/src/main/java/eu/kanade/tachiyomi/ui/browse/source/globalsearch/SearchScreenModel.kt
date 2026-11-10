@@ -14,6 +14,7 @@ import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
@@ -188,7 +189,9 @@ abstract class SearchScreenModel(
                         if (isActive) {
                             updateItem(source, SearchItemResult.Success(titles))
                         }
-                    } catch (e: Exception) {
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
                         if (isActive) {
                             updateItem(source, SearchItemResult.Error(e))
                         }

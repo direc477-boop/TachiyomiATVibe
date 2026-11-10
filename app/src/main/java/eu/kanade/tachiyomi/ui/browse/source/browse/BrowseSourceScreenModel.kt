@@ -24,6 +24,8 @@ import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.util.removeCovers
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.SharingStarted
@@ -78,20 +80,30 @@ class BrowseSourceScreenModel(
 
     val source = sourceManager.getOrStub(sourceId)
 
+    private fun getSourceFilterList(): FilterList {
+        return try {
+            (source as? CatalogueSource)?.getFilterList() ?: FilterList()
+        } catch (e: Throwable) {
+            logcat(LogPriority.ERROR, e) { "Failed to get filters for source $sourceId" }
+            FilterList()
+        }
+    }
+
     init {
         if (source is CatalogueSource) {
             mutableState.update {
                 var query: String? = null
                 var listing = it.listing
 
+                val filters = getSourceFilterList()
                 if (listing is Listing.Search) {
                     query = listing.query
-                    listing = Listing.Search(query, source.getFilterList())
+                    listing = Listing.Search(query, filters)
                 }
 
                 it.copy(
                     listing = listing,
-                    filters = source.getFilterList(),
+                    filters = filters,
                     toolbarQuery = query,
                 )
             }
@@ -137,7 +149,7 @@ class BrowseSourceScreenModel(
     fun resetFilters() {
         if (source !is CatalogueSource) return
 
-        mutableState.update { it.copy(filters = source.getFilterList()) }
+        mutableState.update { it.copy(filters = getSourceFilterList()) }
     }
 
     fun setListing(listing: Listing) {
@@ -158,7 +170,7 @@ class BrowseSourceScreenModel(
         if (source !is CatalogueSource) return
 
         val input = state.value.listing as? Listing.Search
-            ?: Listing.Search(query = null, filters = source.getFilterList())
+            ?: Listing.Search(query = null, filters = getSourceFilterList())
 
         mutableState.update {
             it.copy(
@@ -174,7 +186,7 @@ class BrowseSourceScreenModel(
     fun searchGenre(genreName: String) {
         if (source !is CatalogueSource) return
 
-        val defaultFilters = source.getFilterList()
+        val defaultFilters = getSourceFilterList()
         var genreExists = false
 
         filter@ for (sourceFilter in defaultFilters) {

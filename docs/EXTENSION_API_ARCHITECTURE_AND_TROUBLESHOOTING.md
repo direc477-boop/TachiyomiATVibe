@@ -13,6 +13,7 @@ This guide documents the architecture, repository indexing protocol, and trouble
 | **Extensions install but do not show in Sources** tab. | `libVersion` mismatch or Bundle meta-data float parsing failure. | `ExtensionLoader.kt` | Ensure `appInfo.metaData?.getFloat(METADATA_LIB_VERSION)` fallback is active and within `LIB_VERSION_MIN`..`LIB_VERSION_MAX`. |
 | **Extension installation fails** or hangs at "Installing". | Android `PackageInstaller` session error or scoped storage access permission issue. | `PackageInstallerInstaller.kt`, `ExtensionInstaller.kt` | Check `logcat -s PackageInstallerInstaller` for `EXTRA_STATUS` code and message. |
 | **Crash with `NoSuchMethodError: setMemo`** when searching or browsing sources. | Extension compiled against `tachiyomix:1.6` expects `SManga.setMemo` / `SChapter.setMemo` (`JsonObject`). | `SManga.kt`, `SMangaImpl.kt`, `SChapter.kt`, `SChapterImpl.kt`, `ChapterImpl.kt` | Implement `var memo: JsonObject` with default `JsonObject(emptyMap())` on `SManga` and `SChapter`. |
+| **Crash with `NoClassDefFoundError: Lokhttp3/CompressionInterceptor;`** when initializing extension client. | Modern extensions instantiate OkHttp 5 compression API (`CompressionInterceptor`, `Gzip`, `Brotli`, `Deflate`, `Zstd`). | `core/common/src/main/kotlin/okhttp3/` | Host app provides modern `okhttp3.CompressionInterceptor` and algorithms in `core:common`, loaded via `ChildFirstPathClassLoader` fallback. |
 | **Crash or failure with `IgnoreGzipInterceptor must not be present in default client`**. | Modern extensions require default `OkHttpClient` to not bundle `IgnoreGzipInterceptor` or `BrotliInterceptor`. | `NetworkHelper.kt` | Remove `IgnoreGzipInterceptor()` and `BrotliInterceptor` from `NetworkHelper.client`. |
 
 ---
@@ -118,3 +119,17 @@ If upstream Mihon introduces a new format (e.g., `index_v3` or FlatBuffers):
 3. Wrap raw bytes with `decompressIfGzipped()`.
 4. Add round-trip unit test cases in `ExtensionLoaderCompatibilityTest.kt`.
 5. Maintain legacy fallbacks (`index.pb` -> `index.json` -> `index.min.json`) so older third-party repos do not break.
+
+---
+
+## 6. Modern OkHttp 5 & Extension Classloading
+
+Modern extensions (e.g., compiled against `tachiyomix:1.6+` or Keiyoushi's latest generator) make direct use of OkHttp 5 features:
+1. **`okhttp3.CompressionInterceptor` and Algorithm Objects**:
+   - Extensions configure their custom `getClient()` lazy instance with `okhttp3.CompressionInterceptor(okhttp3.Gzip, okhttp3.brotli.Brotli, ...)`.
+   - The host app bundles these implementations in `core:common` (`okhttp3/CompressionInterceptor.kt`, `Gzip.kt`, `brotli/Brotli.kt`, `Deflate.kt`, `Zstd.kt`).
+   - When `ChildFirstPathClassLoader` fails to find the class in the extension APK, it resolves it from the host app DEX.
+2. **Defensive Error Handling for Coroutines**:
+   - Extension invocations (`getFilterList()`, `getSearchManga()`, `getPopularManga()`) can throw `LinkageError` (e.g. `NoClassDefFoundError`, `NoSuchMethodError`).
+   - Because `LinkageError` extends `java.lang.Error` (not `java.lang.Exception`), UI coroutine callers must catch `CancellationException` first (to rethrow) and `Throwable` second to prevent crashing the entire process.
+

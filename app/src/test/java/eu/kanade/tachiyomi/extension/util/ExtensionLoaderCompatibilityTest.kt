@@ -139,4 +139,26 @@ class ExtensionLoaderCompatibilityTest {
         chapterSetMemoMethod.invoke(chapter, testMemo)
         chapter.memo shouldBe testMemo
     }
+
+    @Test
+    fun `okhttp3 CompressionInterceptor and algorithms resolve for modern extensions`() {
+        val interceptorClass = Class.forName("okhttp3.CompressionInterceptor")
+        interceptorClass shouldBe okhttp3.CompressionInterceptor::class.java
+
+        val gzipClass = Class.forName("okhttp3.Gzip")
+        gzipClass shouldBe okhttp3.Gzip::class.java
+
+        val brotliClass = Class.forName("okhttp3.brotli.Brotli")
+        brotliClass shouldBe okhttp3.brotli.Brotli::class.java
+
+        val interceptor = okhttp3.CompressionInterceptor(
+            okhttp3.Gzip,
+            okhttp3.brotli.Brotli,
+        )
+        val client = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(interceptor)
+            .build()
+
+        client.interceptors.contains(interceptor) shouldBe true
+    }
 }

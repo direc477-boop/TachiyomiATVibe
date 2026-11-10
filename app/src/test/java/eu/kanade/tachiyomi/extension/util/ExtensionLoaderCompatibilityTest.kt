@@ -161,4 +161,14 @@ class ExtensionLoaderCompatibilityTest {
 
         client.interceptors.contains(interceptor) shouldBe true
     }
+
+    @Test
+    fun `com squareup zstd okio OkioZstd methods resolve for modern extensions`() {
+        val okioZstdClass = Class.forName("com.squareup.zstd.okio.OkioZstd")
+        val decompressMethod = okioZstdClass.getMethod("zstdDecompress", okio.Source::class.java)
+        decompressMethod.returnType shouldBe okio.Source::class.java
+
+        val compressMethod = okioZstdClass.getMethod("zstdCompress", okio.Sink::class.java)
+        compressMethod.returnType shouldBe okio.Sink::class.java
+    }
 }

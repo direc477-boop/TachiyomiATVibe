@@ -28,6 +28,8 @@ dependencies {
     api(libs.okhttp.logging)
     api(libs.okhttp.brotli)
     api(libs.okhttp.dnsoverhttps)
+    api("com.github.luben:zstd-jni:1.5.6-8@aar")
+    testImplementation(libs.zstd.jni)
     api(libs.okio)
 
     implementation(libs.image.decoder)

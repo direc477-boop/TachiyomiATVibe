@@ -36,3 +36,4 @@
 *.aar binary
 *.tflite binary
 *.npy binary
+*.npz binary

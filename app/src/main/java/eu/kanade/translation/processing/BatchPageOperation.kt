@@ -97,6 +97,15 @@ internal class BatchPageOperation(
      * data are never clobbered; colorized-from-original pages are the resume
      * scan's completed set. [prepareStream] is awaited before each decode so a
      * streamed chapter's page can be fetched from its source on demand.
+     *
+     * A per-page colorization failure (decode, engine, upscale, commit) is
+     * isolated: the page is durably marked FAILED with [PageTranslation.coloringError]
+     * and the run continues, because each page's colorization is independent
+     * work. The chapter then completes as READY_WITH_WARNINGS (see
+     * [BatchProgressReconciler.reconcileFlaggedCompleted]) and the failed pages
+     * retry on the next colorize run. Only RUN-LEVEL failures — the colorization
+     * runtime being unavailable, or a streamed page that cannot be fetched from
+     * the source (transient, affects every remaining page) — end the run early.
      */
     private suspend fun executeColorizeOnly(
         chapterKey: String,
@@ -120,6 +129,7 @@ internal class BatchPageOperation(
         }.toSet()
 
         var completedCount = completedKeys.size
+        var failedCount = 0
         publish(progress, Progress(chapterKey, completedCount, totalCount, "RESUME_CHECK"), onProgress)
         logcat(LogPriority.INFO) {
             "BatchColorizeOnly: chapter $chapterKey has $completedCount/$totalCount pages already complete"
@@ -177,9 +187,11 @@ internal class BatchPageOperation(
                         coloringError = err
                     }
                 }
-                val failProgress = Progress(chapterKey, completedCount, totalCount, "FAILED", isFinished = true, error = err)
-                publish(progress, failProgress, onProgress)
-                return failProgress
+                // Isolated page failure: the decode is page-local (corrupt or
+                // oversized image), so remaining pages still get colored.
+                failedCount++
+                publish(progress, Progress(chapterKey, completedCount, totalCount, "COLORING"), onProgress)
+                continue
             }
             // Reuse only identity-verified coloring: the stored fingerprint
             // must match the bytes just decoded; otherwise recolor.
@@ -246,9 +258,12 @@ internal class BatchPageOperation(
                     "Failed to colorize page $pageKey: ${page.coloringError ?: "no colorized image was produced"}"
                 }
                 logcat(LogPriority.ERROR) { "BatchColorizeOnly: $error" }
-                val failed = Progress(chapterKey, completedCount, totalCount, "FAILED", isFinished = true, error = error)
-                publish(progress, failed, onProgress)
-                return failed
+                // Isolated page failure: the page's durable state carries
+                // coloringError (or the superseded RUNNING marker heals via
+                // the stranded-page sweep). Keep coloring the rest.
+                failedCount++
+                publish(progress, Progress(chapterKey, completedCount, totalCount, "COLORING"), onProgress)
+                continue
             }
             completedCount++
             publish(
@@ -258,7 +273,11 @@ internal class BatchPageOperation(
             )
         }
 
-        val finalProgress = Progress(chapterKey, totalCount, totalCount, "COMPLETED", isFinished = true)
+        // The terminal chapter status (TRANSLATED vs READY_WITH_WARNINGS vs
+        // retryable ERROR) is derived from the store by the coordinator's
+        // reconciler; a warning-free run and a run with isolated failures both
+        // finish here instead of aborting the queue entry.
+        val finalProgress = Progress(chapterKey, completedCount + failedCount, totalCount, "COMPLETED", isFinished = true)
         publish(progress, finalProgress, onProgress)
         return finalProgress
     }

@@ -630,7 +630,17 @@ internal class BatchTranslationCoordinator(
         val existing = queueState.value.firstOrNull { it.chapter.id == chapter.id }
         if (existing != null) {
             if (existing.status != Translation.State.TRANSLATING) {
+                // A re-arm adopts the caller's latest intent: re-clicking
+                // "Colorize chapter" over a stopped TRANSLATION entry (or
+                // vice versa) must not resume the previous run's mode.
+                val modeChanged = existing.colorizeOnly != colorizeOnly
+                existing.colorizeOnly = colorizeOnly
                 existing.chapter.id?.let(::rearmQueuedChapter)
+                // An already-QUEUE entry short-circuits inside rearm without
+                // persisting, so a mode flip on that entry is saved here.
+                if (modeChanged && existing.status == Translation.State.QUEUE) {
+                    persistQueue()
+                }
             }
             return
         }
@@ -886,6 +896,7 @@ internal class BatchTranslationCoordinator(
                                     pageMap = store.state.value,
                                     orderedKeys = batchOrderedPageKeys,
                                     activeGeneration = store.currentGeneration,
+                                    includeColoringFailures = translation.colorizeOnly,
                                 )
                                 tracker?.finish(batchReconciliation!!)
                             }
@@ -931,6 +942,7 @@ internal class BatchTranslationCoordinator(
                                 pageMap = pageStates,
                                 orderedKeys = batchOrderedPageKeys,
                                 activeGeneration = store.currentGeneration,
+                                includeColoringFailures = translation.colorizeOnly,
                             )
                     translation.status = reconciliation.chapterStatus
                 }

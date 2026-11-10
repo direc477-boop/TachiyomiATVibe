@@ -8,6 +8,8 @@ import eu.kanade.translation.coordinator.InMemorySharedPreferences
 import eu.kanade.translation.coordinator.TranslationQueueStore
 import eu.kanade.translation.coordinator.TranslationSessionCoordinator
 import eu.kanade.translation.coordinator.TranslationSessionState
+import eu.kanade.translation.model.TextRecognizerLanguage
+import eu.kanade.translation.model.TextTranslatorLanguage
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.persistence.ChapterTranslationStore
 import eu.kanade.translation.persistence.TranslationFileProvider
@@ -22,9 +24,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.translation.TranslationEngineCategory
 import tachiyomi.domain.translation.TranslationPreferences
 import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicInteger
@@ -152,6 +156,45 @@ class BatchTranslationCoordinatorStartGuardTest {
         awaitJobs(translationJob(translator))
         translator.isRunning shouldBe false
         translation.status shouldBe Translation.State.ERROR
+    }
+
+    @Test
+    fun `re-clicking colorize chapter rearms a stopped entry for resume`() {
+        // The reported recovery path: a colorize run that stopped leaves its
+        // queue entry ERROR; tapping "Colorize chapter" again must re-arm that
+        // same entry as a runnable COLORIZE-ONLY run.
+        every { sourceManager.get(any()) } returns source
+        val stopped = translation(Translation.State.ERROR)
+        val translator = translatorWithQueue(listOf(stopped))
+
+        translator.queueChapter(manga, chapter, colorizeOnly = true)
+
+        val entry = translator.queuedTranslationOrNull(chapterId)!!
+        entry.status shouldBe Translation.State.QUEUE
+        entry.colorizeOnly shouldBe true
+    }
+
+    @Test
+    fun `re-arming a stopped entry adopts the caller's latest run mode`() {
+        every { sourceManager.get(any()) } returns source
+        val stoppedColorize = translation(Translation.State.ERROR).also { it.colorizeOnly = true }
+        val translator = translatorWithQueue(listOf(stoppedColorize))
+        // A plain translation re-request resolves the language config; valid
+        // entries keep queueChapter on its happy path (AI category skips the
+        // MLKit language gate).
+        every { preferences.translateFromLanguage() } returns preferenceOf(TextRecognizerLanguage.CHINESE.name)
+        every { preferences.translateToLanguage() } returns preferenceOf(TextTranslatorLanguage.ENGLISH.name)
+        every { preferences.translationEngineCategory() } returns preferenceOf(TranslationEngineCategory.AI_MODEL)
+
+        translator.queueChapter(manga, chapter)
+
+        val entry = translator.queuedTranslationOrNull(chapterId)!!
+        entry.status shouldBe Translation.State.QUEUE
+        entry.colorizeOnly shouldBe false
+    }
+
+    private inline fun <reified T> preferenceOf(value: T): Preference<T> = mockk {
+        every { get() } returns value
     }
 
     @Test

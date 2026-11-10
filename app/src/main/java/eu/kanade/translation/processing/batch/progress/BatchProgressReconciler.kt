@@ -104,16 +104,26 @@ object BatchProgressReconciler {
      * and is deliberately unused: a COMPLETED run is generation-agnostic
      * for this live progress snapshot.
      */
+    /**
+     * [includeColoringFailures] is set for COLORIZE-ONLY runs: a page whose
+     * durable coloring failed is a flagged page needing attention (chapter
+     * READY_WITH_WARNINGS), not silent done work — the run deliberately
+     * continues past isolated page failures, so the terminal projection must
+     * surface them. A colorize-only chapter where NOTHING colored is a
+     * retryable ERROR instead of a hollow "complete with warnings".
+     */
     fun reconcileFlaggedCompleted(
         pageMap: Map<String, PageTranslationView>,
         orderedKeys: List<String>,
         activeGeneration: Long,
+        includeColoringFailures: Boolean = false,
     ): ReconciliationResult {
         val expectedKeys = orderedKeys.distinct()
         val unexpectedPageKeys = pageMap.keys - expectedKeys.toSet()
         var doneCount = 0
         var partialCount = 0
         var displayFailedCount = 0
+        var coloringFailedCount = 0
         for (pageKey in expectedKeys) {
             val page = pageMap[pageKey]
             when {
@@ -135,23 +145,29 @@ object BatchProgressReconciler {
                         ) -> {
                     displayFailedCount++
                 }
+                includeColoringFailures &&
+                    page != null &&
+                    page.coloringStatus == eu.kanade.translation.model.StageStatus.FAILED -> {
+                    coloringFailedCount++
+                }
                 else -> {
                     doneCount++
                 }
             }
         }
         return ReconciliationResult(
-            chapterStatus = if (partialCount > 0 || displayFailedCount > 0) {
-                Translation.State.READY_WITH_WARNINGS
-            } else {
-                Translation.State.TRANSLATED
+            chapterStatus = when {
+                includeColoringFailures && coloringFailedCount > 0 && doneCount == 0 -> Translation.State.ERROR
+                includeColoringFailures && coloringFailedCount > 0 -> Translation.State.READY_WITH_WARNINGS
+                partialCount > 0 || displayFailedCount > 0 -> Translation.State.READY_WITH_WARNINGS
+                else -> Translation.State.TRANSLATED
             },
             strandedPages = emptyMap(),
             unexpectedPageKeys = unexpectedPageKeys,
             doneCount = doneCount,
-            failedCount = 0,
+            failedCount = if (includeColoringFailures) coloringFailedCount else 0,
             partialCount = partialCount,
-            terminalCount = 0,
+            terminalCount = if (includeColoringFailures) coloringFailedCount else 0,
         )
     }
 

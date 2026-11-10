@@ -351,7 +351,7 @@ class BatchPageOperationTest {
     }
 
     @Test
-    fun `colorize chapter reports an upscaling failure instead of completing`() = runTest {
+    fun `colorize chapter isolates an upscaling failure and finishes the remaining pages`() = runTest {
         val store: ChapterTranslationStore = mockk(relaxed = true) {
             every { state } returns MutableStateFlow(emptyMap())
             coEvery { updatePageFromCurrentSnapshot(any(), any(), any()) } returns
@@ -367,6 +367,15 @@ class BatchPageOperationTest {
             sourceBytesSize = 1000L,
             sourceFingerprint = "sha-color",
         )
+        coEvery { processor.decodeImage("p2.jpg", any(), any()) } returns DecodedPage(
+            bitmap = bitmap,
+            sampleSize = 1,
+            originalWidth = 800,
+            originalHeight = 1200,
+            decodeDecision = mockk(relaxed = true),
+            sourceBytesSize = 1000L,
+            sourceFingerprint = "sha-color-2",
+        )
         every { processor.activeColorizationEngine() } returns mockk(relaxed = true)
         val upscaler: eu.kanade.translation.engines.upscaling.PageUpscalingEngine = mockk(relaxed = true)
         every { processor.activeUpscalingEngine() } returns upscaler
@@ -374,7 +383,87 @@ class BatchPageOperationTest {
             (args[1] as PageTranslation).coloringStatus = StageStatus.READY
             bitmap
         }
+        coEvery { processor.colorize("p2.jpg", any(), any(), any(), any(), true) } answers {
+            // The engine marks the failure on the page instead of throwing.
+            (args[1] as PageTranslation).apply {
+                coloringStatus = StageStatus.FAILED
+                coloringError = "Out of memory during colorization"
+            }
+            bitmap
+        }
         coEvery { processor.upscale("p1.jpg", any(), upscaler, any(), any()) } throws IllegalStateException("upscaler failed")
+
+        val result = coordinator.execute(
+            chapterKey = "ch1",
+            orderedPageKeys = listOf("p1.jpg", "p2.jpg"),
+            streamProvider = { ByteArrayInputStream(ByteArray(0)) },
+            store = store,
+            progress = MutableStateFlow(BatchPageOperation.Progress("ch1", 0, 2, "INITIALIZING")),
+            colorizeOnly = true,
+        )
+
+        // The upscaler failure on p1 no longer aborts the run: the page is
+        // committed FAILED and p2 is still colored.
+        result.currentStage shouldBe "COMPLETED"
+        result.isFinished shouldBe true
+        result.error shouldBe null
+        coVerify(exactly = 1) { processor.colorize("p2.jpg", any(), any(), any(), any(), true) }
+    }
+
+    @Test
+    fun `colorize chapter isolates a decode failure and colors the remaining pages`() = runTest {
+        val store: ChapterTranslationStore = mockk(relaxed = true) {
+            every { state } returns MutableStateFlow(emptyMap())
+            coEvery { updatePageFromCurrentSnapshot(any(), any(), any()) } returns
+                ChapterTranslationStore.PatchResult.Accepted(mockk(relaxed = true))
+        }
+        val bitmap: Bitmap = mockk(relaxed = true)
+        coEvery { processor.decodeImage("p1.jpg", any(), any()) } returns null
+        coEvery { processor.decodeImage("p2.jpg", any(), any()) } returns DecodedPage(
+            bitmap = bitmap,
+            sampleSize = 1,
+            originalWidth = 800,
+            originalHeight = 1200,
+            decodeDecision = mockk(relaxed = true),
+            sourceBytesSize = 1000L,
+            sourceFingerprint = "sha-color-2",
+        )
+        every { processor.activeColorizationEngine() } returns mockk(relaxed = true)
+        every { processor.activeUpscalingEngine() } returns null
+        coEvery { processor.colorize("p2.jpg", any(), any(), any(), any(), true) } answers {
+            (args[1] as PageTranslation).coloringStatus = StageStatus.READY
+            bitmap
+        }
+
+        val result = coordinator.execute(
+            chapterKey = "ch1",
+            orderedPageKeys = listOf("p1.jpg", "p2.jpg"),
+            streamProvider = { ByteArrayInputStream(ByteArray(0)) },
+            store = store,
+            progress = MutableStateFlow(BatchPageOperation.Progress("ch1", 0, 2, "INITIALIZING")),
+            colorizeOnly = true,
+        )
+
+        result.isFinished shouldBe true
+        result.error shouldBe null
+        // p1's durable state carries the decode failure for the red indicator.
+        coVerify(exactly = 1) {
+            store.updatePageFromCurrentSnapshot(eq("p1.jpg"), eq("batch:colorize-decode-failed"), any())
+        }
+        coVerify(exactly = 1) { processor.colorize("p2.jpg", any(), any(), any(), any(), true) }
+    }
+
+    @Test
+    fun `colorize chapter still stops on a source fetch failure`() = runTest {
+        // A streamed page that cannot be fetched is a RUN-LEVEL failure: every
+        // remaining page would fail the same way, so the run stops as retryable.
+        val store: ChapterTranslationStore = mockk(relaxed = true) {
+            every { state } returns MutableStateFlow(emptyMap())
+            coEvery { updatePageFromCurrentSnapshot(any(), any(), any()) } returns
+                ChapterTranslationStore.PatchResult.Accepted(mockk(relaxed = true))
+        }
+        every { processor.activeColorizationEngine() } returns mockk(relaxed = true)
+        every { processor.activeUpscalingEngine() } returns null
 
         val result = coordinator.execute(
             chapterKey = "ch1",
@@ -383,10 +472,11 @@ class BatchPageOperationTest {
             store = store,
             progress = MutableStateFlow(BatchPageOperation.Progress("ch1", 0, 1, "INITIALIZING")),
             colorizeOnly = true,
+            prepareStream = { throw java.io.IOException("source offline") },
         )
 
         result.currentStage shouldBe "FAILED"
-        result.completedPages shouldBe 0
-        result.error shouldBe "Failed to colorize page p1.jpg: upscaler failed"
+        result.isFinished shouldBe true
+        result.error shouldBe "Failed to fetch page image for p1.jpg during colorize pass: source offline"
     }
 }

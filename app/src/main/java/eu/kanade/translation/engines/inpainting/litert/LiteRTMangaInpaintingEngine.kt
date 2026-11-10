@@ -92,6 +92,7 @@ class LiteRTMangaInpaintingEngine(
                     cachedSize = prefs.getLong(KEY_EXTRACTED_SIZE + baseName, -1L),
                     appUpdateTime = appUpdateTime,
                 ) ||
+                    (extracted.exists() && extracted.length() > 1_000_000L) ||
                     bundledAssetPresent(context, assetPath)
             }
         }
@@ -483,6 +484,13 @@ class LiteRTMangaInpaintingEngine(
             } catch (_: Exception) {
                 // Try next candidate
             }
+        }
+        if (targetFile.exists() && targetFile.length() > 1_000_000L) {
+            prefs.edit()
+                .putLong(KEY_APP_UPDATE_TIME + baseName, appUpdateTime)
+                .putLong(KEY_EXTRACTED_SIZE + baseName, targetFile.length())
+                .apply()
+            return targetFile
         }
         logcat(LogPriority.ERROR) { "[LiteRTInpaint] Failed to extract any asset candidate for $assetPath to storage" }
         return null

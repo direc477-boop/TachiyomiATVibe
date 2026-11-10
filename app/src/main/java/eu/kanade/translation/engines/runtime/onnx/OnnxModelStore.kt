@@ -108,7 +108,7 @@ class OnnxModelStore(private val context: Context) {
     }
 
     fun assetsAvailable(): Boolean {
-        return try {
+        return modelsAvailable() || try {
             context.assets.list("models/ocr")?.isNotEmpty() == true ||
                 context.assets.list("models/detection")?.isNotEmpty() == true
         } catch (_: Exception) {
@@ -176,7 +176,9 @@ class OnnxModelStore(private val context: Context) {
     }
 
     fun paddleOcrV6SmallAssetsAvailable(): Boolean {
-        return try {
+        val dir = File(modelsDir, "paddle-v6-small")
+        val onDisk = File(dir, "inference.onnx").exists() && File(dir, "PP-OCRv6_small_rec.txt").exists()
+        return onDisk || try {
             context.assets.list("models/ocr/paddle-v6-small")?.isNotEmpty() == true
         } catch (_: Exception) {
             false
@@ -209,7 +211,11 @@ class OnnxModelStore(private val context: Context) {
      * whether the det engine is built.
      */
     fun paddleOcrV6LiteRtAssetsAvailable(): Boolean {
-        return try {
+        val dir = File(modelsDir, "paddle-v6-small/litert")
+        val onDisk = PADDLE_LITERT_WIDTHS.all { File(dir, "manga_rec_${it}_fp16.tflite").exists() } &&
+            File(dir, "PP-OCRv6_small_rec.txt").exists() &&
+            File(dir, "manga_det_960_fp16.tflite").exists()
+        return onDisk || try {
             val files = context.assets.list(PADDLE_LITERT_ASSET_DIR)?.toSet() ?: return false
             PADDLE_LITERT_REQUIRED_ASSETS.all { it in files }
         } catch (_: Exception) {
@@ -246,7 +252,7 @@ class OnnxModelStore(private val context: Context) {
     }
 
     fun paddleOcrV6DetAssetsAvailable(): Boolean {
-        return try {
+        return paddleOcrV6DetAvailable() || try {
             context.assets.list("models/ocr/paddle-v6-small/det")?.isNotEmpty() == true
         } catch (_: Exception) {
             false
@@ -281,7 +287,9 @@ class OnnxModelStore(private val context: Context) {
     }
 
     fun liteRtVisionAssetsAvailable(): Boolean {
-        return try {
+        val dir = File(modelsDir, "litert-vision")
+        val onDisk = File(dir, "detector_v4_s_fp32.tflite").exists()
+        return onDisk || try {
             context.assets.list("models/detection/litert")?.isNotEmpty() == true ||
                 context.assets.list("models/segmentation/litert")?.isNotEmpty() == true ||
                 context.assets.list("models/ocr/litert")?.isNotEmpty() == true
@@ -310,7 +318,10 @@ class OnnxModelStore(private val context: Context) {
     }
 
     fun fumetoAssetsAvailable(): Boolean {
-        return try {
+        val dir = File(modelsDir, "fumeto")
+        val onDisk = listOf("encoder.int8.onnx", "decoder.int8.onnx", "enc-vocab.tsv", "spm-pieces.txt")
+            .all { File(dir, it).exists() }
+        return onDisk || try {
             context.assets.list("models/fumeto")?.isNotEmpty() == true
         } catch (_: Exception) {
             false
@@ -372,6 +383,18 @@ class OnnxModelStore(private val context: Context) {
                     }
                 }
             } else {
+                val assetPresent = try {
+                    context.assets.open(assetPath).use { }
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+                if (!assetPresent) {
+                    logcat(LogPriority.WARN) {
+                        "Asset $assetPath not in APK; preserving existing cached $name (${dest.length()} bytes)"
+                    }
+                    return dest
+                }
                 logcat(LogPriority.INFO) {
                     "Cached $name has a stale or missing asset stamp; replacing bundled model copy"
                 }

@@ -332,15 +332,21 @@ internal class LiteRTQuickSRNetUpscalingEngine(
 
             /** Streams the asset into a version-stamped cache, hashing as it copies. */
             private fun extractModel(context: Context): Artifact? {
+                val destination = File(context.noBackupFilesDir, "$MODEL_CACHE_DIR/$MODEL_FILE_NAME")
                 val assetExists = try {
                     context.assets.open(MODEL_ASSET).use { }
                     true
                 } catch (_: FileNotFoundException) {
                     false
                 }
-                if (!assetExists) return null
+                if (!assetExists) {
+                    return if (destination.isFile && destination.length() > 0L) {
+                        Artifact(destination, MangaColorizationModelStore.sha256Of(destination))
+                    } else {
+                        null
+                    }
+                }
 
-                val destination = File(context.noBackupFilesDir, "$MODEL_CACHE_DIR/$MODEL_FILE_NAME")
                 destination.parentFile?.mkdirs()
                 val temporary = File(destination.parentFile, "$MODEL_FILE_NAME.tmp")
                 return try {

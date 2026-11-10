@@ -209,6 +209,15 @@ internal class NpuMangaColorizationEngine(
                     Artifact(destination, sha256)
                 } catch (failure: Throwable) {
                     temporary.delete()
+                    if (destination.isFile && destination.length() > 0L) {
+                        val sha256 = MangaColorizationModelStore.sha256Of(destination)
+                        preferences.edit()
+                            .putLong(KEY_APP_UPDATE_TIME + fileName, appUpdateTime)
+                            .putLong(KEY_EXTRACTED_SIZE + fileName, destination.length())
+                            .putString(KEY_SHA256 + fileName, sha256)
+                            .apply()
+                        return Artifact(destination, sha256)
+                    }
                     if (failure.isFatal()) throw failure
                     throw IllegalStateException("Failed to extract $assetPath: ${failure.message}", failure)
                 }

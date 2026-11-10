@@ -426,6 +426,29 @@ class TranslationManager private constructor(
         return result == eu.kanade.translation.coordinator.TranslationRequestCoordinator.AdmissionResult.QUEUED
     }
 
+    /** Quiesces any active reader session off-main before admitting a chapter colorize batch. */
+    suspend fun colorizeChapterWithSessionSwitch(
+        manga: Manga,
+        chapter: Chapter,
+        expectedRequestGeneration: Long? = null,
+        autoStart: Boolean = true,
+    ): Boolean {
+        if (!translationPreferences.translationColorizationEnabled().get()) {
+            translationPreferences.translationColorizationEnabled().set(true)
+        }
+        if (!isColorizationReady()) return false
+        val chapterId = chapter.id ?: return false
+        return when (readerCoordinator.switchToBatchSession(setOf(chapterId))) {
+            is SessionAdmission.Admitted,
+            is SessionAdmission.Switched,
+            -> colorizeChapter(manga, chapter, expectedRequestGeneration, autoStart).also { admitted ->
+                if (!admitted) requestCoordinator.finishBatchSessionIfQueueIdle()
+            }
+
+            is SessionAdmission.Rejected -> false
+        }
+    }
+
     /** True when the chapter's outstanding queue entry is a colorize-only run (waiting or executing). */
     fun isChapterColorizeOnlyQueuedOrRunning(chapterId: Long): Boolean =
         batchCoordinator.colorizeOnlyQueuedOrRunning(chapterId)

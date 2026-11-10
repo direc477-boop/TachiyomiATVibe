@@ -487,8 +487,12 @@ internal class ReaderTranslationObservationController(private val controller: Re
                     }
                     return@onEach
                 }
-                val tier2Finished = updated.displayImageName != null && page.translatedStream == null
-                val wantsToShowOverlay = updated.toPageDisplayProjection().displayReady && !page.showTranslatedImage
+                val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
+                val resolvedDisplayImage = updated.displayImageName(colorizationEnabled)
+                val tier2Finished = resolvedDisplayImage != null && page.translatedStream == null
+                val wantsToShowOverlay = (updated.toPageDisplayProjection().displayReady || resolvedDisplayImage != null) &&
+                    !page.showTranslatedImage &&
+                    !page.translationToggled
                 page.translation = updated
                 attachTranslatedStreamIfWarm(page, manga, page.chapter, source)
                 if (translationPreferences.translationEnabled().get()) {
@@ -499,7 +503,7 @@ internal class ReaderTranslationObservationController(private val controller: Re
                             pageKey = pageKey,
                             streamAttached = page.translatedStream != null,
                             showTranslatedImage = page.showTranslatedImage,
-                            displayImageName = page.translation?.displayImageName != null,
+                            displayImageName = page.translation?.displayImageName(colorizationEnabled) != null,
                         )
                     }
                     if (updated.isTranslationDisplayReady) {
@@ -507,7 +511,7 @@ internal class ReaderTranslationObservationController(private val controller: Re
                     }
                 }
             }
-            .map { it.toPageView() }
+            .map { it.toPageView(translationPreferences.translationColorizationEnabled().get()) }
             .distinctUntilChanged()
     }
 }

@@ -380,7 +380,10 @@ internal class TranslationRequestCoordinator(
                 colorizeOnly,
             )
         }
-        if (result == AdmissionResult.STALE_GENERATION) return result
+        if (result != AdmissionResult.QUEUED) {
+            finishBatchSessionIfQueueIdle()
+            return result
+        }
         val queued = batchCoordinator.queuedTranslationOrNull(chapterId)
         if (autoStart) {
             batchCoordinator.rearmQueuedChapter(chapterId)
@@ -399,7 +402,7 @@ internal class TranslationRequestCoordinator(
         colorizeOnly: Boolean = false,
     ): AdmissionResult {
         val result = translateChapter(manga, chapter, expectedRequestGeneration, admissionContext, autoStart, colorizeOnly)
-        if (autoStart && result != AdmissionResult.STALE_GENERATION) startBatchTranslation()
+        if (autoStart && result == AdmissionResult.QUEUED) startBatchTranslation()
         return result
     }
 
@@ -430,7 +433,19 @@ internal class TranslationRequestCoordinator(
                 }
             }
         }
+        if (admitted.isEmpty()) finishBatchSessionIfQueueIdle()
         return admitted
+    }
+
+    internal fun finishBatchSessionIfQueueIdle() {
+        val hasActiveOrPaused = batchCoordinator.queueState.value.any {
+            it.status == Translation.State.QUEUE ||
+                it.status == Translation.State.TRANSLATING ||
+                it.status == Translation.State.PAUSED
+        }
+        if (!hasActiveOrPaused) {
+            sessionCoordinator.finishSession(TranslationSessionState.BATCH_SESSION)
+        }
     }
 
     fun translateChaptersAndStart(

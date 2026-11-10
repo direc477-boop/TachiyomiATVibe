@@ -310,7 +310,9 @@ internal class MangaTranslationCoordinator(
         if (items.isEmpty()) return
         scope.launch {
             val admitted = items.count { candidate ->
-                translationManager.colorizeChapter(manga, candidate.chapter)
+                withIOContext {
+                    translationManager.colorizeChapterWithSessionSwitch(manga, candidate.chapter)
+                }
             }
             if (admitted > 0) openTranslationProgressDrawer(items.first())
         }

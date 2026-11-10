@@ -11,10 +11,10 @@ import eu.kanade.translation.engines.translator.NativeStallWatchdog
 import eu.kanade.translation.engines.translator.TextTranslator
 import eu.kanade.translation.engines.upscaling.PageUpscalingEngine
 import eu.kanade.translation.engines.vision.ocr.PageRecognitionEngine
+import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.model.PageTranslation
 import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.isTextlessTerminal
-import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.persistence.ChapterTranslationStore
 import eu.kanade.translation.persistence.LeaseAcquisition
 import eu.kanade.translation.persistence.PageWriteOrigin
@@ -231,33 +231,33 @@ internal class TranslationProcessor(
                     inpaintStatus = StageStatus.SKIPPED
                     originalImageFallback = true
                     updatedAt = System.currentTimeMillis()
-                     // colorize() never throws for a page failure: it marks
-                     // coloringStatus FAILED and returns null.
-                     val upscaler = activeUpscalingEngine()
-                     colorize(
-                         pageKey = pageKey,
-                         page = this,
-                         coloringEngine = engine,
-                         companionDir = if (upscaler != null) null else companionDir,
-                         base = decoded.bitmap,
-                         fromOriginal = true,
-                     )
-                     if (upscaler != null && coloringStatus == StageStatus.READY) {
-                         try {
-                             upscale(pageKey, this, upscaler, companionDir)
-                         } catch (cancelled: CancellationException) {
-                             throw cancelled
-                         } catch (t: Throwable) {
-                             coloringStatus = StageStatus.FAILED
-                             coloringError = t.message ?: "Upscaling failed"
-                         }
-                     }
-                 }
-                 val commit = try {
-                     store.updatePageFromCurrentSnapshot(pageKey, "$origin:colorize-page") { page }
-                 } finally {
-                     releasePageBitmaps(page)
-                 }
+                    // colorize() never throws for a page failure: it marks
+                    // coloringStatus FAILED and returns null.
+                    val upscaler = activeUpscalingEngine()
+                    colorize(
+                        pageKey = pageKey,
+                        page = this,
+                        coloringEngine = engine,
+                        companionDir = if (upscaler != null) null else companionDir,
+                        base = decoded.bitmap,
+                        fromOriginal = true,
+                    )
+                    if (upscaler != null && coloringStatus == StageStatus.READY) {
+                        try {
+                            upscale(pageKey, this, upscaler, companionDir)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (t: Throwable) {
+                            coloringStatus = StageStatus.FAILED
+                            coloringError = t.message ?: "Upscaling failed"
+                        }
+                    }
+                }
+                val commit = try {
+                    store.updatePageFromCurrentSnapshot(pageKey, "$origin:colorize-page") { page }
+                } finally {
+                    releasePageBitmaps(page)
+                }
                 if (commit is ChapterTranslationStore.PatchResult.Rejected) {
                     // The store moved under us — a newer owner owns the state.
                     // Writing a terminal now would clobber it, so the RUNNING
@@ -774,7 +774,35 @@ internal class TranslationProcessor(
                         page = page,
                     )
                 }
-                if (page!!.isTextlessTerminal) return@withTimeout ProcessResult.Success(page!!)
+                if (page!!.isTextlessTerminal) {
+                    val coloringEngine = activeColorizationEngine()
+                    if (coloringEngine != null) {
+                        val upscaler = activeUpscalingEngine()
+                        activeStage = "COLOR"
+                        stageReporter?.invoke(TranslationStageSignal.COLORING)
+                        colorize(
+                            pageKey = pageKey,
+                            page = page!!,
+                            coloringEngine = coloringEngine,
+                            companionDir = if (upscaler != null) null else companionDir,
+                            base = decoded.bitmap,
+                            fromOriginal = true,
+                        )
+                        if (upscaler != null && page!!.coloringStatus == StageStatus.READY) {
+                            activeStage = "UPSCALE"
+                            try {
+                                upscale(pageKey, page!!, upscaler, companionDir)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (t: Throwable) {
+                                page!!.coloringStatus = StageStatus.FAILED
+                                page!!.coloringError = t.message ?: "Upscaling failed"
+                            }
+                        }
+                        stageReporter?.invoke(TranslationStageSignal.FINISHING)
+                    }
+                    return@withTimeout ProcessResult.Success(page!!)
+                }
                 activeStage = "TRANSLATION"
                 stageReporter?.invoke(TranslationStageSignal.TRANSLATING)
                 try {
@@ -841,8 +869,13 @@ internal class TranslationProcessor(
                             current.coloringError = "Single-page colorization timed out"
                         }
                         "UPSCALE" -> {
-                            current.translationStatus = StageStatus.FAILED
-                            current.translationError = "Single-page upscaling timed out"
+                            if (current.isTextlessTerminal) {
+                                current.coloringStatus = StageStatus.FAILED
+                                current.coloringError = "Single-page upscaling timed out"
+                            } else {
+                                current.translationStatus = StageStatus.FAILED
+                                current.translationError = "Single-page upscaling timed out"
+                            }
                         }
                         else -> {
                             current.translationStatus = StageStatus.FAILED

@@ -5,18 +5,20 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,32 +39,36 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tachiyomi.i18n.at.ATMR
 import tachiyomi.presentation.core.i18n.stringResource
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // Idle auto-hide: after this many ms with the menu collapsed and no
@@ -133,10 +139,14 @@ fun TranslationCompareHandle(
     val yFraction = remember { Animatable(verticalFraction.coerceIn(0f, 1f)) }
 
     // Follow preference changes (settings resets, dock-side flips) while idle.
-    LaunchedEffect(dockEnd, verticalFraction, containerWidthPx) {
-        if (dragging) return@LaunchedEffect
-        launch { xFraction.animateTo(if (dockEnd) 1f else 0f, DockSnapSpring) }
-        launch { yFraction.animateTo(verticalFraction.coerceIn(0f, 1f), DockSnapSpring) }
+    LaunchedEffect(dockEnd) {
+        if (!dragging) xFraction.animateTo(if (dockEnd) 1f else 0f, DockSnapSpring)
+    }
+    LaunchedEffect(verticalFraction) {
+        val clamped = verticalFraction.coerceIn(0f, 1f)
+        if (!dragging && abs(yFraction.value - clamped) > 0.005f) {
+            yFraction.animateTo(clamped, DockSnapSpring)
+        }
     }
 
     // Idle timer: armed whenever the menu is collapsed and no drag is active.
@@ -164,12 +174,29 @@ fun TranslationCompareHandle(
         val horizontalInsetPx = with(density) { 16.dp.toPx() }
         val topInsetPx = with(density) { 48.dp.toPx() }
         val bottomMarginPx = with(density) { 16.dp.toPx() } + bottomReservePx
+        val defaultMenuWidthPx = with(density) { 180.dp.toPx() }
+        val defaultMenuHeightPx = with(density) { 240.dp.toPx() }
 
         val usableWidth = (containerWidthPx - 2 * horizontalInsetPx - handleSizePx).coerceAtLeast(1f)
         val usableHeight = (containerHeightPx - topInsetPx - bottomMarginPx - handleSizePx).coerceAtLeast(1f)
+        val currentUsableWidth by rememberUpdatedState(usableWidth)
+        val currentUsableHeight by rememberUpdatedState(usableHeight)
+        val currentDockEnd by rememberUpdatedState(dockEnd)
+        val currentVerticalFraction by rememberUpdatedState(verticalFraction)
+        val isDockedEnd by remember { derivedStateOf { xFraction.value > 0.5f } }
 
-        // Anchored at the handle's top-left; sized only by the handle so menu
-        // layout can never shift it.
+        if (expanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { expanded = false })
+                    },
+            )
+        }
+
+        // Single gesture owner: tap toggles menu, drag relocates.
+        // Delta is read before consume() so Compose does not zero out movement.
         Box(
             modifier = Modifier
                 .offset {
@@ -178,136 +205,236 @@ fun TranslationCompareHandle(
                         (topInsetPx + yFraction.value * usableHeight).roundToInt(),
                     )
                 }
-                .alpha(handleAlpha),
-        ) {
-            // Single gesture owner for the handle: tap toggles menu, hold/drag relocates.
-            // All events on the pressed pointer are consumed so the reader underneath never reacts.
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
-                        shape = RoundedCornerShape(percent = 50),
-                    )
-                    .pointerInput(usableWidth, usableHeight) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown()
-                            down.consume()
-                            isIdle = false
-                            var isDrag = false
-                            var totalMove = 0f
-                            var lastX = xFraction.value
-                            var lastY = yFraction.value
+                .alpha(handleAlpha)
+                .size(40.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+                    shape = RoundedCornerShape(percent = 50),
+                )
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        isIdle = false
+                        val session = FloaterDragSession(
+                            startX = xFraction.value,
+                            startY = yFraction.value,
+                            touchSlopPx = viewConfiguration.touchSlop,
+                        )
+                        var grabHapticFired = false
+                        var releasedNormally = false
 
-                            val grabJob = scope.launch {
-                                delay(250L)
-                                if (!isDrag) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
+                        val grabJob = scope.launch {
+                            delay(250L)
+                            if (!session.isDragging) {
+                                grabHapticFired = true
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
+                        }
 
+                        try {
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id }
                                 if (change == null) {
                                     if (event.changes.none { it.pressed }) break else continue
                                 }
+                                if (change.changedToUpIgnoreConsumed()) {
+                                    change.consume()
+                                    releasedNormally = true
+                                    break
+                                }
+                                val delta = change.positionChangeIgnoreConsumed()
                                 change.consume()
-                                if (change.changedToUpIgnoreConsumed()) break
-                                if (!isDrag) {
-                                    totalMove += change.positionChange().getDistance()
-                                    if (totalMove > viewConfiguration.touchSlop) {
-                                        isDrag = true
-                                        dragging = true
-                                        grabJob.cancel()
+                                val startedDrag = session.onMove(
+                                    delta = delta,
+                                    currentXFraction = xFraction.value,
+                                    currentYFraction = yFraction.value,
+                                    usableWidthPx = currentUsableWidth,
+                                    usableHeightPx = currentUsableHeight,
+                                )
+                                if (startedDrag) {
+                                    dragging = true
+                                    expanded = false
+                                    grabJob.cancel()
+                                    if (!grabHapticFired) {
+                                        grabHapticFired = true
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                 }
-                                if (isDrag) {
-                                    lastX = (lastX + change.positionChange().x / usableWidth).coerceIn(0f, 1f)
-                                    lastY = (lastY + change.positionChange().y / usableHeight).coerceIn(0f, 1f)
-                                    val x = lastX
-                                    val y = lastY
+                                if (session.isDragging) {
+                                    val x = session.xFraction
+                                    val y = session.yFraction
                                     scope.launch {
                                         xFraction.snapTo(x)
                                         yFraction.snapTo(y)
                                     }
                                 }
                             }
+                        } finally {
                             grabJob.cancel()
-                            if (isDrag) {
-                                dragging = false
-                                val endSide = lastX > 0.5f
-                                if (endSide != dockEnd) onDockChange(endSide)
-                                if (lastY !in verticalFraction - 0.001f..verticalFraction + 0.001f) {
-                                    onPositionChange(lastY)
+                            dragging = false
+                        }
+
+                        when (session.onEnd(releasedNormally)) {
+                            FloaterReleaseAction.COMMIT_DRAG -> {
+                                val endSide = session.xFraction > 0.5f
+                                if (endSide != currentDockEnd) onDockChange(endSide)
+                                if (session.yFraction !in currentVerticalFraction - 0.001f..currentVerticalFraction + 0.001f) {
+                                    onPositionChange(session.yFraction)
                                 }
                                 scope.launch {
                                     xFraction.animateTo(if (endSide) 1f else 0f, DockSnapSpring)
                                 }
-                            } else {
-                                expanded = !expanded
                             }
+                            FloaterReleaseAction.TOGGLE_MENU -> expanded = !expanded
+                            FloaterReleaseAction.NONE -> Unit
                         }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.CompareArrows,
-                    contentDescription = stringResource(ATMR.strings.reader_compare_handle),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            FloaterMenu(
-                hasTranslation = hasTranslation,
-                showingTranslated = showingTranslated,
-                autoTranslate = autoTranslate,
-                onSelectOriginal = {
-                    onSelectOriginal()
-                    expanded = false
-                },
-                onSelectTranslated = {
-                    onSelectTranslated()
-                    expanded = false
-                },
-                onToggleAutoTranslate = onToggleAutoTranslate,
-                onColorizeChapter = {
-                    onColorizeChapter()
-                    expanded = false
-                },
-                onColorizePage = {
-                    onColorizePage()
-                    expanded = false
-                },
-                onOpenSettings = {
-                    onOpenSettings()
-                    expanded = false
-                },
-                onSizeChangedPx = { menuSizePx = it },
-                visible = expanded,
-                dockEnd = dockEnd,
-                modifier = Modifier.offset {
-                    val menuWidth = menuSizePx.width.toFloat()
-                    val menuHeight = menuSizePx.height.toFloat()
-                    if (menuWidth < 1f || menuHeight < 1f) return@offset IntOffset.Zero
-                    val anchorTop = topInsetPx + yFraction.value * usableHeight
-                    val dyMin = -anchorTop + topInsetPx
-                    val dyMax = (containerHeightPx - bottomMarginPx - menuHeight - anchorTop)
-                        .coerceAtLeast(dyMin)
-                    val dy = ((handleSizePx - menuHeight) / 2f).coerceIn(dyMin, dyMax)
-                    val anchorLeft = horizontalInsetPx + xFraction.value * usableWidth
-                    val dx = if (dockEnd) {
-                        (-(menuWidth + menuSpacingPx)).coerceAtLeast(-anchorLeft + horizontalInsetPx)
-                    } else {
-                        (handleSizePx + menuSpacingPx)
-                            .coerceAtMost(containerWidthPx - horizontalInsetPx - menuWidth - anchorLeft)
                     }
-                    IntOffset(dx.roundToInt(), dy.roundToInt())
                 },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.CompareArrows,
+                contentDescription = stringResource(ATMR.strings.reader_compare_handle),
+                tint = MaterialTheme.colorScheme.onSurface,
             )
         }
+
+        FloaterMenu(
+            hasTranslation = hasTranslation,
+            showingTranslated = showingTranslated,
+            autoTranslate = autoTranslate,
+            onSelectOriginal = {
+                onSelectOriginal()
+                expanded = false
+            },
+            onSelectTranslated = {
+                onSelectTranslated()
+                expanded = false
+            },
+            onToggleAutoTranslate = onToggleAutoTranslate,
+            onColorizeChapter = {
+                onColorizeChapter()
+                expanded = false
+            },
+            onColorizePage = {
+                onColorizePage()
+                expanded = false
+            },
+            onOpenSettings = {
+                onOpenSettings()
+                expanded = false
+            },
+            onSizeChangedPx = { menuSizePx = it },
+            visible = expanded,
+            dockEnd = isDockedEnd,
+            modifier = Modifier.offset {
+                computeFloaterMenuOffset(
+                    containerWidthPx = containerWidthPx,
+                    containerHeightPx = containerHeightPx,
+                    menuSizePx = menuSizePx,
+                    fallbackWidthPx = defaultMenuWidthPx,
+                    fallbackHeightPx = defaultMenuHeightPx,
+                    horizontalInsetPx = horizontalInsetPx,
+                    topInsetPx = topInsetPx,
+                    bottomMarginPx = bottomMarginPx,
+                    handleSizePx = handleSizePx,
+                    menuSpacingPx = menuSpacingPx,
+                    xFraction = xFraction.value,
+                    yFraction = yFraction.value,
+                    usableWidth = currentUsableWidth,
+                    usableHeight = currentUsableHeight,
+                )
+            },
+        )
     }
+}
+
+internal enum class FloaterReleaseAction {
+    NONE,
+    TOGGLE_MENU,
+    COMMIT_DRAG,
+}
+
+internal class FloaterDragSession(
+    startX: Float,
+    startY: Float,
+    private val touchSlopPx: Float,
+) {
+    var isDragging: Boolean = false
+        private set
+    var xFraction: Float = startX
+        private set
+    var yFraction: Float = startY
+        private set
+    private var accumulatedSlopDelta = Offset.Zero
+
+    fun onMove(
+        delta: Offset,
+        currentXFraction: Float,
+        currentYFraction: Float,
+        usableWidthPx: Float,
+        usableHeightPx: Float,
+    ): Boolean {
+        var justStartedDrag = false
+        if (!isDragging) {
+            accumulatedSlopDelta += delta
+            if (accumulatedSlopDelta.getDistance() > touchSlopPx) {
+                isDragging = true
+                justStartedDrag = true
+                xFraction = currentXFraction
+                yFraction = currentYFraction
+            }
+        }
+        if (isDragging) {
+            xFraction = stepFloaterFraction(xFraction, delta.x, usableWidthPx)
+            yFraction = stepFloaterFraction(yFraction, delta.y, usableHeightPx)
+        }
+        return justStartedDrag
+    }
+
+    fun onEnd(releasedNormally: Boolean): FloaterReleaseAction = when {
+        isDragging -> FloaterReleaseAction.COMMIT_DRAG
+        releasedNormally -> FloaterReleaseAction.TOGGLE_MENU
+        else -> FloaterReleaseAction.NONE
+    }
+}
+
+internal fun stepFloaterFraction(current: Float, deltaPx: Float, usableSpanPx: Float): Float {
+    val span = usableSpanPx.coerceAtLeast(1f)
+    return (current + deltaPx / span).coerceIn(0f, 1f)
+}
+
+internal fun computeFloaterMenuOffset(
+    containerWidthPx: Int,
+    containerHeightPx: Int,
+    menuSizePx: IntSize,
+    fallbackWidthPx: Float,
+    fallbackHeightPx: Float,
+    horizontalInsetPx: Float,
+    topInsetPx: Float,
+    bottomMarginPx: Float,
+    handleSizePx: Float,
+    menuSpacingPx: Float,
+    xFraction: Float,
+    yFraction: Float,
+    usableWidth: Float,
+    usableHeight: Float,
+): IntOffset {
+    val menuWidth = if (menuSizePx.width > 0) menuSizePx.width.toFloat() else fallbackWidthPx
+    val menuHeight = if (menuSizePx.height > 0) menuSizePx.height.toFloat() else fallbackHeightPx
+    val anchorLeft = horizontalInsetPx + xFraction * usableWidth
+    val anchorTop = topInsetPx + yFraction * usableHeight
+    val xMax = (containerWidthPx - horizontalInsetPx - menuWidth).coerceAtLeast(horizontalInsetPx)
+    val menuLeft = if (xFraction > 0.5f) {
+        (anchorLeft - menuSpacingPx - menuWidth).coerceIn(horizontalInsetPx, xMax)
+    } else {
+        (anchorLeft + handleSizePx + menuSpacingPx).coerceIn(horizontalInsetPx, xMax)
+    }
+    val yMax = (containerHeightPx - bottomMarginPx - menuHeight).coerceAtLeast(topInsetPx)
+    val menuTop = (anchorTop + (handleSizePx - menuHeight) / 2f).coerceIn(topInsetPx, yMax)
+    return IntOffset(menuLeft.roundToInt(), menuTop.roundToInt())
 }
 
 @Composable
@@ -326,12 +453,11 @@ private fun FloaterMenu(
     dockEnd: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val origin = TransformOrigin(if (dockEnd) 1f else 0f, 0.5f)
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(120)) +
-            expandHorizontally(tween(150), expandFrom = if (dockEnd) Alignment.End else Alignment.Start),
-        exit = fadeOut(tween(90)) +
-            shrinkHorizontally(tween(120), shrinkTowards = if (dockEnd) Alignment.End else Alignment.Start),
+        enter = fadeIn(tween(120)) + scaleIn(tween(150), initialScale = 0.88f, transformOrigin = origin),
+        exit = fadeOut(tween(90)) + scaleOut(tween(120), targetScale = 0.88f, transformOrigin = origin),
         modifier = modifier,
     ) {
         val activeColor = MaterialTheme.colorScheme.primary

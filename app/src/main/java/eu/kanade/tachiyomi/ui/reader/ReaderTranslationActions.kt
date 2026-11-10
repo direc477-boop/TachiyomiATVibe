@@ -2,8 +2,8 @@ package eu.kanade.tachiyomi.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import eu.kanade.tachiyomi.data.database.models.toDomainChapter
 import com.hippo.unifile.UniFile
+import eu.kanade.tachiyomi.data.database.models.toDomainChapter
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.InsertPage
@@ -21,7 +21,10 @@ import eu.kanade.translation.coordinator.SessionRejection
 import eu.kanade.translation.diagnostics.NativeVisionTelemetry
 import eu.kanade.translation.engines.inpainting.litert.LiteRTMangaInpaintingEngine
 import eu.kanade.translation.model.Translation
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
@@ -57,6 +60,8 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
         set(value) {
             owner.liveTranslationState = value
         }
+
+    private var colorizeChapterJob: Job? = null
 
     private fun recomputeTranslationState() = owner.recomputeTranslationState()
     private fun getCurrentChapter() = owner.getCurrentChapter()
@@ -329,6 +334,7 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
             return
         }
         val tapTimeNs = System.nanoTime()
+        readerCoordinator.beginSessionPreparation()
         when (
             val admission = translationManager.sessionCoordinator.requestReaderSession(
                 ReaderSessionIntent(chapterId = page.chapter.chapter.id),
@@ -339,11 +345,15 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
             -> translateSinglePageAfterAdmission(page, force, tapTimeNs)
 
             is SessionAdmission.Rejected -> when (admission.reason) {
-                SessionRejection.BATCH_ACTIVE -> mutableState.update {
-                    it.copy(dialog = ReaderViewModel.Dialog.BatchReaderSwitch(page = page, force = force))
+                SessionRejection.BATCH_ACTIVE -> {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdleAsync()
+                    mutableState.update {
+                        it.copy(dialog = ReaderViewModel.Dialog.BatchReaderSwitch(page = page, force = force))
+                    }
                 }
 
                 SessionRejection.PAUSING_IN_PROGRESS -> {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdleAsync()
                     Injekt.get<Application>().toast(ATMR.strings.reader_batch_switch_wait)
                 }
 
@@ -362,21 +372,28 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
      */
     internal fun confirmBatchReaderSwitch(request: ReaderViewModel.Dialog.BatchReaderSwitch) {
         mutableState.update { it.copy(dialog = null) }
+        readerCoordinator.beginSessionPreparation()
         viewModelScope.launchIO {
-            when (val admission = translationManager.switchReaderSession(request.page.chapter.chapter.id)) {
-                is SessionAdmission.Admitted,
-                is SessionAdmission.Switched,
-                -> translateSinglePage(request.page, request.force)
+            try {
+                when (val admission = translationManager.switchReaderSession(request.page.chapter.chapter.id)) {
+                    is SessionAdmission.Admitted,
+                    is SessionAdmission.Switched,
+                    -> translateSinglePage(request.page, request.force)
 
-                is SessionAdmission.Rejected -> {
-                    withUIContext {
-                        val message = when (admission.reason) {
-                            SessionRejection.PAUSING_IN_PROGRESS -> ATMR.strings.reader_batch_switch_wait
-                            SessionRejection.BATCH_ACTIVE -> ATMR.strings.reader_batch_switch_cancelled
-                            SessionRejection.READER_ACTIVE -> ATMR.strings.reader_batch_switch_reader_active
+                    is SessionAdmission.Rejected -> {
+                        withUIContext {
+                            val message = when (admission.reason) {
+                                SessionRejection.PAUSING_IN_PROGRESS -> ATMR.strings.reader_batch_switch_wait
+                                SessionRejection.BATCH_ACTIVE -> ATMR.strings.reader_batch_switch_cancelled
+                                SessionRejection.READER_ACTIVE -> ATMR.strings.reader_batch_switch_reader_active
+                            }
+                            Injekt.get<Application>().toast(message)
                         }
-                        Injekt.get<Application>().toast(message)
                     }
+                }
+            } finally {
+                withContext(NonCancellable) {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdle()
                 }
             }
         }
@@ -390,10 +407,12 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
         val chapter = page.chapter.chapter
         val pageKey = resolvePageKey(page)
         val manga = manga ?: run {
+            readerCoordinator.endSessionPreparationAndReleaseIfIdleAsync()
             logcat(LogPriority.WARN) { "translateSinglePage: manga is null, cannot translate" }
             return
         }
         val source = sourceManager.get(manga.source) as? HttpSource ?: run {
+            readerCoordinator.endSessionPreparationAndReleaseIfIdleAsync()
             logcat(LogPriority.WARN) { "translateSinglePage: invalid HttpSource, cannot translate" }
             return
         }
@@ -435,40 +454,47 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
             manga.source,
         )
         if (page.originalStream == null && !pageChapterDownloaded && page.imageUrl == null) {
+            readerCoordinator.endSessionPreparationAndReleaseIfIdleAsync()
             logcat(LogPriority.WARN) {
                 "translateSinglePage: no stream available for page $pageKey (originalStream=null, chapterDownloaded=$pageChapterDownloaded, imageUrl=${page.imageUrl != null})"
             }
             return
         }
         viewModelScope.launchIO {
-            val token = ensureQueueSession(page.chapter) ?: run {
-                logcat(LogPriority.WARN) {
-                    "translateSinglePage: no reader queue session for $pageKey (admission denied or store unavailable)"
+            try {
+                val token = ensureQueueSession(page.chapter) ?: run {
+                    logcat(LogPriority.WARN) {
+                        "translateSinglePage: no reader queue session for $pageKey (admission denied or store unavailable)"
+                    }
+                    return@launchIO
                 }
-                return@launchIO
-            }
-            val streamFn = resolveManualStreamFn(page, token) ?: return@launchIO
-            val delayMs = (System.nanoTime() - tapTimeNs) / 1_000_000.0
-            NativeVisionTelemetry.logTapToDispatch(pageKey, delayMs)
-            // One submission path for every byte source: the queue owns dedup,
-            // promotion and the ordered replacement of a forced retry.
-            when (
-                val submission = readerCoordinator.submitPage(
-                    token = token,
-                    work = ReaderPageWork(
-                        pageKey = pageKey,
-                        readerPageIndex = page.index,
-                        streamFn = streamFn,
-                    ),
-                    trigger = ReaderTrigger.MANUAL_TAP,
-                    force = effectiveForce,
-                )
-            ) {
-                is ReaderSubmission.Rejected -> logcat(LogPriority.WARN) {
-                    "translateSinglePage: submission rejected for $pageKey (${submission.outcome})"
-                }
+                val streamFn = resolveManualStreamFn(page, token) ?: return@launchIO
+                val delayMs = (System.nanoTime() - tapTimeNs) / 1_000_000.0
+                NativeVisionTelemetry.logTapToDispatch(pageKey, delayMs)
+                // One submission path for every byte source: the queue owns dedup,
+                // promotion and the ordered replacement of a forced retry.
+                when (
+                    val submission = readerCoordinator.submitPage(
+                        token = token,
+                        work = ReaderPageWork(
+                            pageKey = pageKey,
+                            readerPageIndex = page.index,
+                            streamFn = streamFn,
+                        ),
+                        trigger = ReaderTrigger.MANUAL_TAP,
+                        force = effectiveForce,
+                    )
+                ) {
+                    is ReaderSubmission.Rejected -> logcat(LogPriority.WARN) {
+                        "translateSinglePage: submission rejected for $pageKey (${submission.outcome})"
+                    }
 
-                else -> Unit
+                    else -> Unit
+                }
+            } finally {
+                withContext(NonCancellable) {
+                    readerCoordinator.endSessionPreparationAndReleaseIfIdle()
+                }
             }
         }
     }
@@ -739,20 +765,34 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
         val translationJobActive = translationManager.isChapterBatchActive(chapterId, includePaused = false) &&
             !translationManager.isChapterColorizeOnlyQueuedOrRunning(chapterId)
 
-        val outcome = resolveReaderColorizeOutcome(
-            ready = ready,
-            translationJobActive = translationJobActive,
-        ) {
-            translationManager.colorizeChapter(manga, domainChapter)
+        if (!ready || translationJobActive) {
+            val outcome = resolveReaderColorizeOutcome(
+                ready = ready,
+                translationJobActive = translationJobActive,
+            ) { false }
+            Injekt.get<Application>().toast(colorizeOutcomeMessage(outcome))
+            return
         }
 
-        val message = when (outcome) {
-            ReaderColorizeOutcome.UNAVAILABLE -> ATMR.strings.manga_colorize_unavailable
-            ReaderColorizeOutcome.TRANSLATION_JOB_ACTIVE -> ATMR.strings.reader_colorize_conflict_translation
-            ReaderColorizeOutcome.QUEUED -> ATMR.strings.reader_colorize_queued
-            ReaderColorizeOutcome.QUEUE_FAILED -> ATMR.strings.reader_colorize_queue_failed
+        if (colorizeChapterJob?.isActive == true) return
+        colorizeChapterJob = viewModelScope.launchIO {
+            val outcome = resolveReaderColorizeOutcome(
+                ready = ready,
+                translationJobActive = translationJobActive,
+            ) {
+                translationManager.colorizeChapterWithSessionSwitch(manga, domainChapter)
+            }
+            withUIContext {
+                Injekt.get<Application>().toast(colorizeOutcomeMessage(outcome))
+            }
         }
-        Injekt.get<Application>().toast(message)
+    }
+
+    private fun colorizeOutcomeMessage(outcome: ReaderColorizeOutcome) = when (outcome) {
+        ReaderColorizeOutcome.UNAVAILABLE -> ATMR.strings.manga_colorize_unavailable
+        ReaderColorizeOutcome.TRANSLATION_JOB_ACTIVE -> ATMR.strings.reader_colorize_conflict_translation
+        ReaderColorizeOutcome.QUEUED -> ATMR.strings.reader_colorize_queued
+        ReaderColorizeOutcome.QUEUE_FAILED -> ATMR.strings.reader_colorize_queue_failed
     }
 }
 
@@ -763,7 +803,7 @@ internal enum class ReaderColorizeOutcome {
     QUEUE_FAILED,
 }
 
-internal fun resolveReaderColorizeOutcome(
+internal inline fun resolveReaderColorizeOutcome(
     ready: Boolean,
     translationJobActive: Boolean = false,
     admit: () -> Boolean,

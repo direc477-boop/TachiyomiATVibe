@@ -39,6 +39,39 @@ class PageDisplayReadinessTest {
         first shouldNotBe second
     }
 
+    @Test
+    fun `textless page gaining ready colored image updates PageView when colorization enabled`() {
+        val uncolored = PageTranslation(
+            blocks = mutableListOf(),
+            ocrStatus = StageStatus.READY,
+            translationStatus = StageStatus.SKIPPED,
+            inpaintStatus = StageStatus.SKIPPED,
+            renderStatus = StageStatus.SKIPPED,
+        )
+        val colored = PageTranslation(
+            blocks = mutableListOf(),
+            ocrStatus = StageStatus.READY,
+            translationStatus = StageStatus.SKIPPED,
+            inpaintStatus = StageStatus.SKIPPED,
+            renderStatus = StageStatus.SKIPPED,
+            coloringStatus = StageStatus.READY,
+            coloredImageName = "page1.colored.v1.jpg",
+            coloredFromOriginal = true,
+        )
+
+        val beforeView = uncolored.toPageView(colorizationEnabled = true)
+        val afterView = colored.toPageView(colorizationEnabled = true)
+        val disabledPrefView = colored.toPageView(colorizationEnabled = false)
+
+        beforeView.imageName shouldBe null
+        beforeView.coloredImageName shouldBe null
+        afterView.imageName shouldBe "page1.colored.v1.jpg"
+        afterView.coloredImageName shouldBe "page1.colored.v1.jpg"
+        afterView shouldNotBe beforeView
+        disabledPrefView.imageName shouldBe null
+        disabledPrefView.coloredImageName shouldBe "page1.colored.v1.jpg"
+    }
+
     private fun readyImagePage(
         translation: String = "translated",
         translationStatus: String = StageStatus.READY,

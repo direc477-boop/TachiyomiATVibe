@@ -21,6 +21,7 @@ class TranslationSessionCoordinator(
 
     private val lock = Any()
     private val _state = MutableStateFlow(TranslationSessionState.IDLE)
+    private var pausingTarget: TranslationSessionState? = null
 
     val state: StateFlow<TranslationSessionState> = _state.asStateFlow()
 
@@ -36,6 +37,7 @@ class TranslationSessionCoordinator(
             when (_state.value) {
                 TranslationSessionState.IDLE -> {
                     _state.value = TranslationSessionState.READER_SESSION
+                    pausingTarget = null
                     SessionAdmission.Admitted(TranslationSessionState.READER_SESSION)
                 }
 
@@ -48,6 +50,7 @@ class TranslationSessionCoordinator(
                         SessionAdmission.Rejected(SessionRejection.BATCH_ACTIVE)
                     } else {
                         _state.value = TranslationSessionState.READER_SESSION
+                        pausingTarget = null
                         invokeBatchPause = true
                         SessionAdmission.Switched(TranslationSessionState.BATCH_SESSION)
                     }
@@ -67,6 +70,7 @@ class TranslationSessionCoordinator(
         when (_state.value) {
             TranslationSessionState.IDLE -> {
                 _state.value = TranslationSessionState.BATCH_SESSION
+                pausingTarget = null
                 SessionAdmission.Admitted(TranslationSessionState.BATCH_SESSION)
             }
 
@@ -92,6 +96,7 @@ class TranslationSessionCoordinator(
     fun beginPausing(): Boolean = synchronized(lock) {
         if (_state.value != TranslationSessionState.BATCH_SESSION) return false
         _state.value = TranslationSessionState.PAUSING
+        pausingTarget = TranslationSessionState.READER_SESSION
         true
     }
 
@@ -99,6 +104,7 @@ class TranslationSessionCoordinator(
     fun completePausingForReader(): Boolean = synchronized(lock) {
         if (_state.value != TranslationSessionState.PAUSING) return false
         _state.value = TranslationSessionState.READER_SESSION
+        pausingTarget = null
         true
     }
 
@@ -123,6 +129,7 @@ class TranslationSessionCoordinator(
             when (_state.value) {
                 TranslationSessionState.IDLE -> {
                     _state.value = TranslationSessionState.READER_SESSION
+                    pausingTarget = null
                     return@synchronized null
                 }
 
@@ -133,6 +140,7 @@ class TranslationSessionCoordinator(
 
                 TranslationSessionState.BATCH_SESSION -> {
                     _state.value = TranslationSessionState.PAUSING
+                    pausingTarget = TranslationSessionState.READER_SESSION
                     TranslationSessionState.BATCH_SESSION
                 }
             }
@@ -146,13 +154,20 @@ class TranslationSessionCoordinator(
         try {
             pauseBatch()
             while (true) {
-                if (synchronized(lock) { _state.value != TranslationSessionState.PAUSING }) {
+                if (synchronized(lock) {
+                        _state.value != TranslationSessionState.PAUSING ||
+                            pausingTarget != TranslationSessionState.READER_SESSION
+                    }
+                ) {
                     return SessionAdmission.Rejected(SessionRejection.PAUSING_IN_PROGRESS)
                 }
                 if (joinBatch(timeoutMs)) {
                     synchronized(lock) {
-                        if (_state.value == TranslationSessionState.PAUSING) {
+                        if (_state.value == TranslationSessionState.PAUSING &&
+                            pausingTarget == TranslationSessionState.READER_SESSION
+                        ) {
                             _state.value = TranslationSessionState.READER_SESSION
+                            pausingTarget = null
                             return SessionAdmission.Switched(TranslationSessionState.BATCH_SESSION)
                         }
                     }
@@ -166,22 +181,99 @@ class TranslationSessionCoordinator(
             // batch is still unwinding. Restore the batch owner rather than
             // leaving the global admission gate stranded in PAUSING.
             synchronized(lock) {
-                if (_state.value == TranslationSessionState.PAUSING) {
+                if (_state.value == TranslationSessionState.PAUSING &&
+                    pausingTarget == TranslationSessionState.READER_SESSION
+                ) {
                     _state.value = TranslationSessionState.BATCH_SESSION
+                    pausingTarget = null
                 }
             }
             throw cancelled
         }
     }
 
-    /**
-     * Abort an in-flight reader handoff when the reader is torn down. The
-     * batch remains the owner; a still-running switch coroutine observes the
-     * state change and cannot publish a reader session after teardown.
-     */
+    /** Pauses active reader work and waits for unwind before admitting batch ownership. */
+    suspend fun switchReaderToBatch(
+        @Suppress("UNUSED_PARAMETER") intent: BatchSessionIntent,
+        pauseReader: () -> Unit,
+        joinReader: suspend (timeoutMs: Long) -> Boolean,
+        timeoutMs: Long = 3_000L,
+        retryDelayMs: Long = 2_000L,
+        onJoinTimeout: (timeoutMs: Long) -> Unit = {},
+    ): SessionAdmission {
+        val previous = synchronized(lock) {
+            when (_state.value) {
+                TranslationSessionState.IDLE -> {
+                    _state.value = TranslationSessionState.BATCH_SESSION
+                    pausingTarget = null
+                    return@synchronized null
+                }
+
+                TranslationSessionState.BATCH_SESSION -> return@synchronized null
+                TranslationSessionState.PAUSING -> {
+                    return@synchronized TranslationSessionState.PAUSING
+                }
+
+                TranslationSessionState.READER_SESSION -> {
+                    _state.value = TranslationSessionState.PAUSING
+                    pausingTarget = TranslationSessionState.BATCH_SESSION
+                    TranslationSessionState.READER_SESSION
+                }
+            }
+        }
+
+        if (previous == null) return SessionAdmission.Admitted(TranslationSessionState.BATCH_SESSION)
+        if (previous == TranslationSessionState.PAUSING) {
+            return SessionAdmission.Rejected(SessionRejection.PAUSING_IN_PROGRESS)
+        }
+
+        try {
+            pauseReader()
+            while (true) {
+                if (synchronized(lock) {
+                        _state.value != TranslationSessionState.PAUSING ||
+                            pausingTarget != TranslationSessionState.BATCH_SESSION
+                    }
+                ) {
+                    return SessionAdmission.Rejected(SessionRejection.PAUSING_IN_PROGRESS)
+                }
+                if (joinReader(timeoutMs)) {
+                    synchronized(lock) {
+                        if (_state.value == TranslationSessionState.PAUSING &&
+                            pausingTarget == TranslationSessionState.BATCH_SESSION
+                        ) {
+                            _state.value = TranslationSessionState.BATCH_SESSION
+                            pausingTarget = null
+                            return SessionAdmission.Switched(TranslationSessionState.READER_SESSION)
+                        }
+                    }
+                    return SessionAdmission.Rejected(SessionRejection.PAUSING_IN_PROGRESS)
+                }
+                onJoinTimeout(timeoutMs)
+                delay(retryDelayMs)
+            }
+        } catch (cancelled: CancellationException) {
+            synchronized(lock) {
+                if (_state.value == TranslationSessionState.PAUSING &&
+                    pausingTarget == TranslationSessionState.BATCH_SESSION
+                ) {
+                    _state.value = TranslationSessionState.READER_SESSION
+                    pausingTarget = null
+                }
+            }
+            throw cancelled
+        }
+    }
+
+    /** Aborts a reader-targeted handoff on teardown; never interrupts a batch-targeted switch. */
     fun abortPausingToBatch(): Boolean = synchronized(lock) {
-        if (_state.value != TranslationSessionState.PAUSING) return false
+        if (_state.value != TranslationSessionState.PAUSING ||
+            pausingTarget == TranslationSessionState.BATCH_SESSION
+        ) {
+            return false
+        }
         _state.value = TranslationSessionState.BATCH_SESSION
+        pausingTarget = null
         true
     }
 
@@ -190,6 +282,7 @@ class TranslationSessionCoordinator(
         synchronized(lock) {
             if (expectedState == null || _state.value == expectedState) {
                 _state.value = TranslationSessionState.IDLE
+                pausingTarget = null
             }
         }
     }

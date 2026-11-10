@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -45,6 +46,8 @@ import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -127,12 +130,17 @@ internal class ReaderTranslationCoordinator(
     private val outcomeStates = ConcurrentHashMap<String, MutableStateFlow<Map<String, SinglePageOutcome>>>()
     private val outcomeLock = Any()
     private val staleOutcomes = MutableStateFlow<Map<String, SinglePageOutcome>>(emptyMap())
+    private val pendingSessionPreparations = AtomicInteger(0)
+    private val sessionSwitchJobs = CopyOnWriteArrayList<Job>()
 
     @Volatile
     private var activeSessionChapterKey: String? = null
 
     @Volatile
     private var readerStopInFlight = false
+
+    @Volatile
+    private var batchSwitchPauseRequested = false
 
     // Event channel to wake up worker on new work instead of polling delay
     private val triggerChannel = Channel<Unit>(capacity = Channel.CONFLATED)
@@ -180,6 +188,7 @@ internal class ReaderTranslationCoordinator(
             for (trigger in triggerChannel) {
                 while (isActive) {
                     val nextRequest = mutex.withLock {
+                        if (batchSwitchPauseRequested) return@withLock null
                         val manualKey = manualQueue.keys.firstOrNull()
                         val req = if (manualKey != null) {
                             manualQueue.remove(manualKey)
@@ -191,62 +200,192 @@ internal class ReaderTranslationCoordinator(
                             val fullKey = "${request.chapterKey}:${request.pageKey}"
                             queuedKeys.remove(fullKey)
                             if (!request.isManual) automaticQueuedKeys.remove(fullKey)
+                            inFlight.add(fullKey)
+                            requestChapterKeys[fullKey] = request.chapterKey
+                            if (!request.isManual) automaticRequestKeys.add(fullKey)
                         }
                         updatePendingCountLocked()
                         req
                     } ?: break
 
                     val fullKey = "${nextRequest.chapterKey}:${nextRequest.pageKey}"
-
-                    // Check mutually exclusive batch gate
-                    if (isBatchActiveForChapter(nextRequest.chapterKey)) {
-                        logcat(LogPriority.INFO) {
-                            "ReaderTranslationCoordinator: yielding $fullKey because batch is active on chapter"
-                        }
-                        continue
-                    }
-
-                    // Check if already completed in store
-                    val currentState = nextRequest.session.store.state.value[nextRequest.pageKey]
-                    if (isReaderPageWorkFinal(currentState, nextRequest.force)) {
-                        logcat(LogPriority.DEBUG) {
-                            "ReaderTranslationCoordinator: page $fullKey already complete, skipping"
-                        }
-                        publishOutcome(nextRequest.chapterKey, nextRequest.pageKey, SinglePageOutcome.Completed)
-                        continue
-                    }
-
-                    _activePageKey.value = nextRequest.pageKey
-                    inFlight.add(fullKey)
-                    requestChapterKeys[fullKey] = nextRequest.chapterKey
-                    if (!nextRequest.isManual) automaticRequestKeys.add(fullKey)
-                    val requestJob = scope.launch(start = CoroutineStart.LAZY) {
-                        val outcome = try {
-                            prepareEngines()
-                            processRequest(nextRequest)
-                        } catch (c: CancellationException) {
-                            throw c
-                        } catch (t: Throwable) {
-                            logcat(LogPriority.ERROR, t) {
-                                "ReaderTranslationCoordinator: unexpected failure processing $fullKey"
-                            }
-                            SinglePageOutcome.Failed(nextRequest.pageKey, t.message ?: "Translation failed")
-                        }
-                        if (isActive) publishOutcome(nextRequest.chapterKey, nextRequest.pageKey, outcome)
-                    }
-                    requestJobs[fullKey] = requestJob
-                    requestJob.start()
+                    var requestJob: Job? = null
                     try {
-                        requestJob.join()
+                        // Check mutually exclusive batch gate
+                        if (isBatchActiveForChapter(nextRequest.chapterKey)) {
+                            logcat(LogPriority.INFO) {
+                                "ReaderTranslationCoordinator: yielding $fullKey because batch is active on chapter"
+                            }
+                            continue
+                        }
+
+                        // Check if already completed in store
+                        val currentState = nextRequest.session.store.state.value[nextRequest.pageKey]
+                        if (isReaderPageWorkFinal(currentState, nextRequest.force)) {
+                            logcat(LogPriority.DEBUG) {
+                                "ReaderTranslationCoordinator: page $fullKey already complete, skipping"
+                            }
+                            publishOutcome(nextRequest.chapterKey, nextRequest.pageKey, SinglePageOutcome.Completed)
+                            continue
+                        }
+
+                        _activePageKey.value = nextRequest.pageKey
+                        val job = scope.launch(start = CoroutineStart.LAZY) {
+                            val outcome = try {
+                                prepareEngines()
+                                processRequest(nextRequest)
+                            } catch (c: CancellationException) {
+                                throw c
+                            } catch (t: Throwable) {
+                                logcat(LogPriority.ERROR, t) {
+                                    "ReaderTranslationCoordinator: unexpected failure processing $fullKey"
+                                }
+                                SinglePageOutcome.Failed(nextRequest.pageKey, t.message ?: "Translation failed")
+                            }
+                            if (isActive) publishOutcome(nextRequest.chapterKey, nextRequest.pageKey, outcome)
+                        }
+                        requestJob = job
+                        requestJobs[fullKey] = job
+                        job.invokeOnCompletion {
+                            requestJobs.remove(fullKey, job)
+                            requestChapterKeys.remove(fullKey)
+                            automaticRequestKeys.remove(fullKey)
+                            inFlight.remove(fullKey)
+                            if (_activePageKey.value == nextRequest.pageKey) {
+                                _activePageKey.value = null
+                            }
+                        }
+                        if (batchSwitchPauseRequested) {
+                            job.cancel()
+                            break
+                        }
+                        job.start()
+                        job.join()
                     } finally {
-                        requestJobs.remove(fullKey, requestJob)
+                        requestJob?.let { requestJobs.remove(fullKey, it) }
                         requestChapterKeys.remove(fullKey)
                         automaticRequestKeys.remove(fullKey)
                         inFlight.remove(fullKey)
-                        _activePageKey.value = null
+                        if (_activePageKey.value == nextRequest.pageKey) {
+                            _activePageKey.value = null
+                        }
                     }
                 }
+                releaseSessionIfIdle()
             }
+        }
+    }
+
+    fun beginSessionPreparation() {
+        pendingSessionPreparations.incrementAndGet()
+    }
+
+    suspend fun endSessionPreparationAndReleaseIfIdle() {
+        val remaining = pendingSessionPreparations.decrementAndGet()
+        if (remaining <= 0) {
+            pendingSessionPreparations.compareAndSet(remaining, 0)
+            releaseSessionIfIdle()
+        }
+    }
+
+    fun endSessionPreparationAndReleaseIfIdleAsync() {
+        val remaining = pendingSessionPreparations.decrementAndGet()
+        if (remaining <= 0) {
+            pendingSessionPreparations.compareAndSet(remaining, 0)
+            scope.launch { releaseSessionIfIdle() }
+        }
+    }
+
+    /** Releases READER_SESSION -> IDLE once no queued, active, or preparing work remains. */
+    suspend fun releaseSessionIfIdle() {
+        val sessions = sessionCoordinator ?: return
+        if (sessions.state.value != TranslationSessionState.READER_SESSION) return
+        sessionBindingMutex.withLock {
+            if (sessions.state.value != TranslationSessionState.READER_SESSION) return@withLock
+            val shouldRelease = mutex.withLock {
+                manualQueue.isEmpty() &&
+                    autoQueue.isEmpty() &&
+                    inFlight.isEmpty() &&
+                    requestJobs.isEmpty() &&
+                    autoEnabledChapters.isEmpty() &&
+                    pendingSessionPreparations.get() == 0
+            }
+            if (shouldRelease) {
+                sessionBindings.clear()
+                activeSessionChapterKey = null
+                viewportStates.clear()
+                viewportRevisions.clear()
+                sessions.finishSession(TranslationSessionState.READER_SESSION)
+            }
+        }
+    }
+
+    fun pauseForSessionSwitch() {
+        batchSwitchPauseRequested = true
+        requestJobs.values.forEach { job ->
+            retainSessionSwitchJob(job)
+            job.cancel()
+        }
+    }
+
+    private fun retainSessionSwitchJob(job: Job) {
+        if (sessionSwitchJobs.addIfAbsent(job)) {
+            job.invokeOnCompletion { sessionSwitchJobs.remove(job) }
+        }
+    }
+
+    suspend fun joinForSessionSwitch(timeoutMs: Long): Boolean {
+        sessionBindingMutex.withLock {
+            mutex.withLock {
+                manualQueue.clear()
+                autoQueue.clear()
+                queuedKeys.clear()
+                automaticQueuedKeys.clear()
+                autoEnabledChapters.clear()
+                viewportStates.clear()
+                viewportRevisions.clear()
+                sessionBindings.clear()
+                activeSessionChapterKey = null
+                updatePendingCountLocked()
+            }
+            requestJobs.values.forEach { job ->
+                retainSessionSwitchJob(job)
+                job.cancel()
+            }
+        }
+        chapterCancellationJobs.values.forEach(::retainSessionSwitchJob)
+        for (pendingJob in sessionSwitchJobs.toList()) {
+            if (withTimeoutOrNull(timeoutMs) { pendingJob.join() } == null) {
+                return false
+            }
+            sessionSwitchJobs.remove(pendingJob)
+        }
+        return inFlight.isEmpty() && requestJobs.isEmpty()
+    }
+
+    suspend fun switchToBatchSession(chapterIds: Set<Long>): SessionAdmission {
+        return try {
+            val sessions = sessionCoordinator
+            if (sessions == null) {
+                pauseForSessionSwitch()
+                joinForSessionSwitch(timeoutMs = 3_000L)
+                SessionAdmission.Admitted(TranslationSessionState.BATCH_SESSION)
+            } else {
+                withContext(Dispatchers.IO) {
+                    sessions.switchReaderToBatch(
+                        intent = BatchSessionIntent(chapterIds),
+                        pauseReader = ::pauseForSessionSwitch,
+                        joinReader = ::joinForSessionSwitch,
+                        onJoinTimeout = { timeoutMs ->
+                            logcat(LogPriority.WARN) {
+                                "TachiyomiAT batch admission waiting for reader unwind after $timeoutMs ms"
+                            }
+                        },
+                    )
+                }
+            }
+        } finally {
+            batchSwitchPauseRequested = false
         }
     }
 
@@ -289,12 +428,18 @@ internal class ReaderTranslationCoordinator(
     ): ReaderSessionToken? {
         val chapterId = session.chapter.id ?: return null
         val chapterKey = chapterId.toString()
-        if (chapterKey in chapterCancellations || !admitReaderSession(chapterId) || isBatchActiveForChapter(chapterKey)) return null
+        if (batchSwitchPauseRequested ||
+            readerStopInFlight ||
+            chapterKey in chapterCancellations ||
+            isBatchActiveForChapter(chapterKey)
+        ) {
+            return null
+        }
         chapterCancellationJobs[chapterKey]?.join()
         return sessionBindingMutex.withLock {
-            if (readerStopInFlight ||
+            if (batchSwitchPauseRequested ||
+                readerStopInFlight ||
                 chapterKey in chapterCancellations ||
-                !admitReaderSession(chapterId) ||
                 isBatchActiveForChapter(chapterKey)
             ) {
                 return@withLock null
@@ -304,7 +449,14 @@ internal class ReaderTranslationCoordinator(
                 chapterCancellationJobs[previousChapterKey]?.join()
                 cancelChapter(previousChapterKey)
             }
-            if (chapterKey in chapterCancellations || readerStopInFlight) return@withLock null
+            if (batchSwitchPauseRequested ||
+                readerStopInFlight ||
+                chapterKey in chapterCancellations ||
+                isBatchActiveForChapter(chapterKey) ||
+                !admitReaderSession(chapterId)
+            ) {
+                return@withLock null
+            }
             val existing = sessionBindings[chapterKey]
             if (existing != null &&
                 existing.session.key == session.key &&
@@ -341,7 +493,10 @@ internal class ReaderTranslationCoordinator(
         invalidateSession(chapterKey)
         synchronized(chapterCancellationLock) {
             if (chapterCancellationJobs[chapterKey]?.isActive == true) return
-            val job = scope.launch(start = CoroutineStart.LAZY) { cancelChapter(chapterKey) }
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                cancelChapter(chapterKey)
+                releaseSessionIfIdle()
+            }
             chapterCancellationJobs[chapterKey] = job
             job.invokeOnCompletion {
                 synchronized(chapterCancellationLock) {
@@ -361,7 +516,9 @@ internal class ReaderTranslationCoordinator(
         val session = sessionFor(token) ?: return rejectedSubmission(trigger, PageRejectionKind.SESSION_DENIED, "reader session is no longer active")
         val chapterId = session.chapter.id ?: return rejectedSubmission(trigger, PageRejectionKind.OTHER, "chapter id missing")
         val chapterKey = chapterId.toString()
-        if (isBatchActiveForChapter(chapterKey)) return rejectedSubmission(trigger, PageRejectionKind.SESSION_DENIED, "batch owns chapter")
+        if (batchSwitchPauseRequested || isBatchActiveForChapter(chapterKey)) {
+            return rejectedSubmission(trigger, PageRejectionKind.SESSION_DENIED, "batch owns chapter")
+        }
         val isManual = trigger == ReaderTrigger.MANUAL_TAP
         val previousOutcome = outcomeFor(chapterId, work.pageKey)
         if (previousOutcome != null && !force && !isRetryable(previousOutcome, isManual)) {
@@ -389,17 +546,40 @@ internal class ReaderTranslationCoordinator(
         val session = sessionFor(token) ?: return
         val chapterId = session.chapter.id ?: return
         val chapterKey = chapterId.toString()
-        if (isBatchActiveForChapter(chapterKey) || !isAutoTranslateEnabled()) return
+        if (batchSwitchPauseRequested || isBatchActiveForChapter(chapterKey) || !isAutoTranslateEnabled()) return
         viewportStates[chapterKey] = ViewportState(token, pageIndex, pageCount, resolve)
         val revision = viewportRevisions.computeIfAbsent(chapterKey) { AtomicLong() }.incrementAndGet()
         setAutoEnabled(chapterKey, true)
+        if (batchSwitchPauseRequested || !isAutoTranslateEnabled()) {
+            setAutoEnabled(chapterKey, false)
+            return
+        }
         scope.launch {
+            var releaseNeeded = false
             viewportLocks.computeIfAbsent(chapterKey) { Mutex() }.withLock {
-                if (viewportRevisions[chapterKey]?.get() != revision || sessionFor(token) == null) return@withLock
+                if (batchSwitchPauseRequested ||
+                    viewportRevisions[chapterKey]?.get() != revision ||
+                    sessionFor(token) == null
+                ) {
+                    return@withLock
+                }
+                if (!isAutoTranslateEnabled() || chapterKey !in autoEnabledChapters) {
+                    releaseNeeded = true
+                    return@withLock
+                }
                 val visibleOrNear = (pageIndex..minOf(pageIndex + 1, pageCount - 1))
                     .mapNotNull(resolve)
                     .distinctBy { it.pageKey }
-                if (viewportRevisions[chapterKey]?.get() != revision || sessionFor(token) == null) return@withLock
+                if (batchSwitchPauseRequested ||
+                    viewportRevisions[chapterKey]?.get() != revision ||
+                    sessionFor(token) == null
+                ) {
+                    return@withLock
+                }
+                if (!isAutoTranslateEnabled() || chapterKey !in autoEnabledChapters) {
+                    releaseNeeded = true
+                    return@withLock
+                }
                 updateViewportWindow(chapterKey, visibleOrNear.mapTo(linkedSetOf()) { it.pageKey })
                 visibleOrNear.forEach { work ->
                     enqueuePage(
@@ -412,6 +592,9 @@ internal class ReaderTranslationCoordinator(
                         ),
                     )
                 }
+            }
+            if (releaseNeeded) {
+                releaseSessionIfIdle()
             }
         }
     }
@@ -464,25 +647,32 @@ internal class ReaderTranslationCoordinator(
     }
 
     fun translatePage(manga: Manga, chapter: Chapter, source: HttpSource, pageKey: String, force: Boolean = false) {
+        beginSessionPreparation()
         scope.launch {
-            val session = openSession(manga, chapter, source)
-            if (session == null) {
-                chapter.id?.let { publishOutcome(it.toString(), pageKey, SinglePageOutcome.Failed(pageKey, "store unavailable")) }
-                return@launch
-            }
-            val token = bindSession(session, TranslatorComputeClass.REMOTE_IO)
-            if (token == null) {
-                chapter.id?.let {
-                    publishOutcome(
-                        it.toString(),
-                        pageKey,
-                        SinglePageOutcome.Rejected(null, PageRejectionKind.SESSION_DENIED, "reader session denied"),
-                    )
+            try {
+                val session = openSession(manga, chapter, source)
+                if (session == null) {
+                    chapter.id?.let { publishOutcome(it.toString(), pageKey, SinglePageOutcome.Failed(pageKey, "store unavailable")) }
+                    return@launch
                 }
-                return@launch
+                val token = bindSession(session, TranslatorComputeClass.REMOTE_IO)
+                if (token == null) {
+                    chapter.id?.let {
+                        publishOutcome(
+                            it.toString(),
+                            pageKey,
+                            SinglePageOutcome.Rejected(null, PageRejectionKind.SESSION_DENIED, "reader session denied"),
+                        )
+                    }
+                    return@launch
+                }
+                val work = ReaderPageWork(pageKey, -1, manualStreamProvider(manga, chapter, source, pageKey))
+                submitPage(token, work, ReaderTrigger.MANUAL_TAP, force)
+            } finally {
+                withContext(NonCancellable) {
+                    endSessionPreparationAndReleaseIfIdle()
+                }
             }
-            val work = ReaderPageWork(pageKey, -1, manualStreamProvider(manga, chapter, source, pageKey))
-            submitPage(token, work, ReaderTrigger.MANUAL_TAP, force)
         }
     }
 
@@ -616,6 +806,7 @@ internal class ReaderTranslationCoordinator(
      * Manual requests preempt all auto requests.
      */
     suspend fun enqueuePage(request: PageRequest): Boolean = mutex.withLock {
+        if (batchSwitchPauseRequested) return false
         val fullKey = "${request.chapterKey}:${request.pageKey}"
 
         if (!request.isManual && request.chapterKey !in autoEnabledChapters) return false
@@ -665,6 +856,7 @@ internal class ReaderTranslationCoordinator(
             updateViewportWindow(chapterKey, emptySet())
             val keys = automaticRequestKeys.filter { it.startsWith("$chapterKey:") }
             cancelRequestsAndJoin(keys)
+            releaseSessionIfIdle()
         }
         return hadAutomaticDemand
     }
@@ -705,6 +897,7 @@ internal class ReaderTranslationCoordinator(
         val active = requestChapterKeys.containsKey(fullKey)
         cancelRequestsAndJoin(listOf(fullKey))
         triggerChannel.trySend(Unit)
+        releaseSessionIfIdle()
         return wasQueued || active
     }
 
@@ -804,6 +997,7 @@ internal class ReaderTranslationCoordinator(
 
     suspend fun cancelPageTranslations(chapterId: Long, reason: String = "Translation cancelled") {
         cancelChapter(chapterId.toString())
+        releaseSessionIfIdle()
         if (isChapterBatchActive(chapterId, includePaused = true)) return
         disposeBatchTracker(chapterId)
         activeStores?.get(chapterId)?.clearTransientQueuePages(reason)
@@ -875,6 +1069,9 @@ internal class ReaderTranslationCoordinator(
         viewportStates.clear()
         viewportRevisions.clear()
         viewportLocks.clear()
+        sessionSwitchJobs.clear()
+        pendingSessionPreparations.set(0)
+        batchSwitchPauseRequested = false
         activeSessionChapterKey = null
         updatePendingCountLocked()
     }

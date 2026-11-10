@@ -113,4 +113,87 @@ class TranslationSessionCoordinatorQuiescenceTest {
         switchJob.cancelAndJoin()
         coordinator.state.value shouldBe TranslationSessionState.BATCH_SESSION
     }
+
+    @Test
+    fun `joined reader switch retries until reader unwinds then admits batch`() = runTest {
+        val coordinator = TranslationSessionCoordinator()
+        coordinator.requestReaderSession(ReaderSessionIntent(chapterId = 10L))
+        val pauseCalls = mutableListOf<String>()
+        val joinTimeouts = mutableListOf<Long>()
+        val statesSeenByJoin = mutableListOf<TranslationSessionState>()
+        var attempts = 0
+
+        val admission = coordinator.switchReaderToBatch(
+            intent = BatchSessionIntent(setOf(10L)),
+            pauseReader = { pauseCalls += "pause" },
+            joinReader = {
+                statesSeenByJoin += coordinator.state.value
+                attempts += 1
+                attempts == 2
+            },
+            timeoutMs = 3_000L,
+            retryDelayMs = 0L,
+            onJoinTimeout = { joinTimeouts += it },
+        )
+
+        admission shouldBe SessionAdmission.Switched(TranslationSessionState.READER_SESSION)
+        pauseCalls shouldContainExactly listOf("pause")
+        statesSeenByJoin shouldContainExactly listOf(
+            TranslationSessionState.PAUSING,
+            TranslationSessionState.PAUSING,
+        )
+        joinTimeouts shouldContainExactly listOf(3_000L)
+        coordinator.state.value shouldBe TranslationSessionState.BATCH_SESSION
+    }
+
+    @Test
+    fun `batch switch cancellation restores reader ownership`() = runTest {
+        val coordinator = TranslationSessionCoordinator()
+        coordinator.requestReaderSession(ReaderSessionIntent(chapterId = 10L))
+
+        val switchJob = launch {
+            coordinator.switchReaderToBatch(
+                intent = BatchSessionIntent(setOf(10L)),
+                pauseReader = {},
+                joinReader = { kotlinx.coroutines.awaitCancellation() },
+                timeoutMs = 3_000L,
+                retryDelayMs = 2_000L,
+            )
+        }
+        runCurrent()
+        coordinator.state.value shouldBe TranslationSessionState.PAUSING
+
+        switchJob.cancelAndJoin()
+        coordinator.state.value shouldBe TranslationSessionState.READER_SESSION
+    }
+
+    @Test
+    fun `abortPausingToBatch refuses to interrupt a batch-targeted switch from reader`() = runTest {
+        val coordinator = TranslationSessionCoordinator()
+        coordinator.requestReaderSession(ReaderSessionIntent(chapterId = 10L))
+        val joinStarted = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val allowJoin = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        val switchJob = launch {
+            val admission = coordinator.switchReaderToBatch(
+                intent = BatchSessionIntent(setOf(10L)),
+                pauseReader = {},
+                joinReader = {
+                    joinStarted.complete(Unit)
+                    allowJoin.await()
+                    true
+                },
+            )
+            admission shouldBe SessionAdmission.Switched(TranslationSessionState.READER_SESSION)
+        }
+        joinStarted.await()
+        coordinator.state.value shouldBe TranslationSessionState.PAUSING
+
+        coordinator.abortPausingToBatch() shouldBe false
+        coordinator.state.value shouldBe TranslationSessionState.PAUSING
+
+        allowJoin.complete(Unit)
+        switchJob.join()
+        coordinator.state.value shouldBe TranslationSessionState.BATCH_SESSION
+    }
 }

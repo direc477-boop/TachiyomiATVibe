@@ -7,6 +7,7 @@ data class PageView(
     val errorMessage: String?,
     val translationReady: Boolean,
     val overlayFingerprint: String?,
+    val coloredImageName: String? = null,
 ) {
     enum class OverlayState {
         Idle,
@@ -15,7 +16,7 @@ data class PageView(
     }
 }
 
-fun PageTranslationView?.toPageView(): PageView {
+fun PageTranslationView?.toPageView(colorizationEnabled: Boolean = false): PageView {
     if (this == null) {
         return PageView(
             imageName = null,
@@ -24,9 +25,10 @@ fun PageTranslationView?.toPageView(): PageView {
             errorMessage = null,
             translationReady = false,
             overlayFingerprint = null,
+            coloredImageName = null,
         )
     }
-    val imageName = displayImageName
+    val imageName = displayImageName(colorizationEnabled)
     val overlay = when {
         isStageRunning -> PageView.OverlayState.Running
         isStageFailed && imageName == null -> PageView.OverlayState.Error
@@ -39,6 +41,7 @@ fun PageTranslationView?.toPageView(): PageView {
         errorMessage = errorMessage,
         translationReady = isTranslationDisplayReady,
         overlayFingerprint = overlayContentFingerprint.takeIf { isTranslationDisplayReady },
+        coloredImageName = coloredImageName.takeIf { coloringStatus == StageStatus.READY },
     )
 }
 

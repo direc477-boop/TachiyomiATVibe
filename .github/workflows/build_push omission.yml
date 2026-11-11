@@ -1,0 +1,71 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@cc4fc85e6b35bafd578d5ffbc76a5518407e1af0 # v4.2.1
+
+      - name: Set up JDK
+        uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b # v4.5.0
+        with:
+          java-version: 17
+          distribution: adopt
+
+      - name: Set up gradle
+        uses: gradle/actions/setup-gradle@cc4fc85e6b35bafd578d5ffbc76a5518407e1af0 # v4.2.1
+
+      - name: Install model conversion dependencies
+        run: python3 -m pip install --disable-pip-version-check -r scripts/converters/requirements.txt
+
+      - name: Test model provisioning manifest and family selection
+        run: python3 -m unittest discover -s scripts -p 'test_fetch_models.py'
+
+      - name: Fetch and verify model assets
+        run: python3 scripts/fetch_models.py
+
+      - name: Warm up dependency resolution (retries through JitPack outages)
+        run: |
+          attempt=1
+          until ./gradlew -q :app:mergeStandardReleaseNativeLibs > /dev/null 2>&1; do
+            if [ "$attempt" -ge 6 ]; then
+              echo "dependency resolution failed after $attempt attempts"
+              ./gradlew :app:mergeStandardReleaseNativeLibs || true
+              exit 1
+            fi
+            echo "resolution attempt $attempt failed; retrying in 60s"
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+          echo "runtime classpath resolved on attempt $attempt"
+
+      - name: Build app without tests
+        run: ./gradlew spotlessCheck assembleStandardRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: arm64-v8a-${{ github.sha }}
+          path: app/build/outputs/apk/standard/release/app-standard-arm64-v8a-release-unsigned.apk
+
+      - name: Upload mapping
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: mapping-${{ github.sha }}
+          path: app/build/outputs/mapping/standardRelease

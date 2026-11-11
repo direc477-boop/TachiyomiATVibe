@@ -36,7 +36,9 @@ AGENT*.md
 AGENT_*.md
 
 # Local development and scraping tools (not APK build dependencies)
-tools/
+tools/**/output/
+tools/**/.settings.json
+tools/**/__pycache__/
 __pycache__/
 *.pyc
 

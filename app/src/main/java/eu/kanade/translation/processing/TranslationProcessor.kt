@@ -67,6 +67,7 @@ internal class TranslationProcessor(
     private val translationPreferences: TranslationPreferences? = null,
     private val streamRegistry: TranslationStreamRegistry? = null,
     private val suppliedCleanedPublication: CleanedPublication? = null,
+    private val coloredBitmapHandoff: ColoredBitmapHandoff? = null,
 ) : AutoCloseable {
 
     sealed interface ProcessResult {
@@ -254,6 +255,7 @@ internal class TranslationProcessor(
                     }
                 }
                 val commit = try {
+                    handOffColoredBitmapForDisplay(page)
                     store.updatePageFromCurrentSnapshot(pageKey, "$origin:colorize-page") { page }
                 } finally {
                     releasePageBitmaps(page)
@@ -337,6 +339,24 @@ internal class TranslationProcessor(
         page.cleanedBitmap = null
         page.coloredBitmap?.let(::recycleIfNeeded)
         page.coloredBitmap = null
+    }
+
+    /**
+     * Offers a freshly colorized bitmap to the reader handoff before the
+     * durable commit. On acceptance ownership moves to the handoff (the
+     * pipeline drops its reference so [releasePageBitmaps] never recycles it);
+     * on refusal the bitmap keeps the usual pipeline lifecycle. The published
+     * file remains the durable source either way.
+     */
+    fun handOffColoredBitmapForDisplay(page: PageTranslation) {
+        val handoff = coloredBitmapHandoff ?: return
+        val bitmap = page.coloredBitmap ?: return
+        val imageName = page.coloredImageName ?: return
+        if (page.coloringStatus != StageStatus.READY) return
+        if (bitmap.isRecycled) return
+        if (handoff.offer(imageName, bitmap)) {
+            page.coloredBitmap = null
+        }
     }
 
     /** Executes OCR on the serialized native lane. */

@@ -104,7 +104,6 @@ class TranslationPreferences(
 
     fun translateFromLanguage() = preferenceStore.getString("translate_language_from", "CHINESE")
     fun translateToLanguage() = preferenceStore.getString("translate_language_to", "ENGLISH")
-    fun translationFont() = preferenceStore.getInt("translation_font", 0)
 
     fun translationRequireCharging() = preferenceStore.getBoolean("translation_require_charging", false)
     fun translationContinueInBackground() = preferenceStore.getBoolean("translation_continue_in_background", true)
@@ -132,6 +131,13 @@ class TranslationPreferences(
     /** Which colorization engine runs when colorization is enabled. */
     fun translationColorizationModel(): Preference<ColorizationModel> =
         preferenceStore.getEnum("translation_colorization_model", ColorizationModel.DEFAULT)
+
+    /**
+     * Opt-in FFDNet denoising preprocessing before colorization.
+     * When true, replaces the gated bilateral filter with native-resolution FFDNet sigma=25
+     * (faithful to original qweasdd recipe, slower).
+     */
+    fun preferFfdnetDenoising() = preferenceStore.getBoolean("prefer_ffdnet_denoising", false)
 
     /**
      * Master gate for on-device QuickSRNetLarge page upscaling. Default OFF.

@@ -144,18 +144,37 @@ class DurableStatusWipeGateTest {
     }
 
     @Test
-    fun `a missing document resolves null without wiping or caching`() = runTest {
+    fun `a missing document resolves null, caches the negative, and survives reads`() = runTest {
         // No artifact manifest exists in the manga directory.
+        var findWalks = 0
+        val negativeProvider = mockk<TranslationFileProvider>()
+        every { negativeProvider.findMangaDir(any(), any()) } answers {
+            findWalks++
+            null
+        }
+        every { negativeProvider.getTranslationFileName(any(), any()) } answers { "${firstArg<String>()}.json" }
+        every { negativeProvider.invalidateDirectoryMemo() } answers { Unit }
         val registry = ActiveChapterStoreRegistry()
-        val resolver = resolver(provider(), registry)
+        val resolver = resolver(negativeProvider, registry)
         val cache = durableStatusCache(resolver)
 
         cache[sentinel()] = DurableStatus(Translation.State.NOT_TRANSLATED)
         val state = resolver.persistedChapterStatus(42L, "Chapter 1", null, "Manga", 77L)
+        val repeatState = resolver.persistedChapterStatus(42L, "Chapter 1", null, "Manga", 77L)
 
+        // Absence is cached too (one SAF walk, not one per screen open), the
+        // sentinel survives every read pass, and clearDurableStatusCache drops
+        // the negative so durable truth can re-resolve.
         state shouldBe null
+        repeatState shouldBe null
+        findWalks shouldBe 1
         cache.containsKey(sentinel()) shouldBe true
+        cache.containsKey(DurableChapterKey(42L, "Chapter 1", null, "Manga", 77L)) shouldBe true
+
+        resolver.clearDurableStatusCache()
         cache.containsKey(DurableChapterKey(42L, "Chapter 1", null, "Manga", 77L)) shouldBe false
+        resolver.persistedChapterStatus(42L, "Chapter 1", null, "Manga", 77L) shouldBe null
+        findWalks shouldBe 2
     }
 
     @Test

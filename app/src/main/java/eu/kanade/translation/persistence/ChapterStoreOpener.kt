@@ -139,6 +139,29 @@ internal object ChapterStoreOpener {
             is ManifestDocumentRead.Unavailable -> throw read.cause
         }
 
+    /**
+     * Manifest-only status projection inputs for the header-probe path: the
+     * page shapes come from the records' [PageArtifactRecord.toArtifactPageFallback]
+     * fallback (no snapshot reads), and the committed-first display seed mirrors
+     * [readDurableChapter]. Doneness is supplied to the projection through
+     * [PageArtifactRecord.isManifestCommittedTerminal] instead of per-page JSON.
+     */
+    internal fun probeStatusProjectionData(manifest: ChapterArtifactManifest): StoreStatusProjectionData {
+        val pages = manifest.pages
+            .mapValues { (_, record) -> record.toArtifactPageFallback().toPublishedPage() }
+        val committedFirst = pages.filterKeys { pageKey -> manifest.pages[pageKey]?.committed != null }
+            .toMutableMap()
+        pages.forEach { (pageKey, page) ->
+            if (!committedFirst.containsKey(pageKey) && page.hasRenderedResult) committedFirst[pageKey] = page
+        }
+        val display = pages.mapValues { (pageKey, page) -> committedFirst[pageKey] ?: page }
+        return StoreStatusProjectionData(
+            manifest = manifest,
+            pagesSnapshot = pages,
+            displaySnapshot = display,
+        )
+    }
+
     private fun readManifestClassified(parent: UniFile, layout: ChapterArtifactLayout): ManifestDocumentRead {
         val primary = parent.findFile(layout.manifestFileName)
         if (primary != null && primary.exists()) {

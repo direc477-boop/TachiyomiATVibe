@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -22,7 +24,9 @@ import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.translation.diagnostics.TelemetryTrace
 import eu.kanade.translation.model.displayImageName
+import eu.kanade.translation.model.isColorizeOnlyComplete
 import eu.kanade.translation.model.isStageRunning
+import eu.kanade.translation.model.isTranslationDisplayReady
 import eu.kanade.translation.model.shouldShowTranslationOverlay
 import eu.kanade.translation.model.toPageDisplayProjection
 import kotlinx.coroutines.CoroutineScope
@@ -126,6 +130,24 @@ class WebtoonPageHolder(
     private var lastShownImageName: String? = null
 
     /**
+     * TachiyomiAT: colored bitmap handed over by a colorize commit for this
+     * page (F4 fast swap). Ownership sits here: recycled when the displayed
+     * image is replaced or on [recycle].
+     */
+    private var handoffBitmap: Bitmap? = null
+
+    private fun releaseHandoffBitmap() {
+        handoffBitmap?.let { if (!it.isRecycled) it.recycle() }
+        handoffBitmap = null
+    }
+
+    private fun imageConfig() = ReaderPageImageView.Config(
+        zoomDuration = viewer.config.doubleTapAnimDuration,
+        minimumScaleType = SubsamplingScaleImageView.SCALE_TYPE_FIT_WIDTH,
+        cropBorders = viewer.config.imageCropBorders,
+    )
+
+    /**
      * TachiyomiAT: a generation counter bumped on every [bind]. In-flight
      * [setImage] jobs capture the generation they were launched with and bail
      * before touching the view if a newer bind has landed — cooperative
@@ -223,6 +245,7 @@ class WebtoonPageHolder(
         // attached holder. Reset both decoded views and presentation state at
         // this boundary so page A cannot remain visible behind page B.
         frame.recycle()
+        releaseHandoffBitmap()
         removeErrorLayout()
         progressIndicator.setProgress(0)
         progressContainer.isVisible = true
@@ -279,6 +302,7 @@ class WebtoonPageHolder(
         page = null
         lastShownImageName = null
         bindGeneration++
+        releaseHandoffBitmap()
 
         removeErrorLayout()
         frame.recycle()
@@ -363,6 +387,25 @@ class WebtoonPageHolder(
         // Keep the button and scrim aligned with the durable running-stage state.
         syncTranslateButtonState()
 
+        // TachiyomiAT: a colorize commit for this visible page hands over its
+        // in-memory bitmap — skip the SAF stream open and full decode entirely.
+        if (boundPage.showTranslatedImage) {
+            val handoffName = boundPage.translation?.displayImageName(colorizationEnabled)
+            val handoff = handoffName?.let(viewer.activity.viewModel::pollColoredBitmapHandoff)
+            if (handoff != null) {
+                val previous = handoffBitmap
+                handoffBitmap = handoff
+                frame.setImage(
+                    BitmapDrawable(context.resources, handoff),
+                    imageConfig(),
+                )
+                syncTranslateButtonState()
+                removeErrorLayout()
+                previous?.let { if (!it.isRecycled) it.recycle() }
+                return
+            }
+        }
+
         try {
             val (source, isAnimated) = withIOContext {
                 val startNanos = System.nanoTime()
@@ -387,12 +430,10 @@ class WebtoonPageHolder(
                 frame.setImage(
                     source,
                     isAnimated,
-                    ReaderPageImageView.Config(
-                        zoomDuration = viewer.config.doubleTapAnimDuration,
-                        minimumScaleType = SubsamplingScaleImageView.SCALE_TYPE_FIT_WIDTH,
-                        cropBorders = viewer.config.imageCropBorders,
-                    ),
+                    imageConfig(),
                 )
+                // A decoded file image replaced any handed-off bitmap on screen.
+                releaseHandoffBitmap()
                 syncTranslateButtonState()
                 removeErrorLayout()
             }
@@ -418,17 +459,25 @@ class WebtoonPageHolder(
         val streamAvailable = currentPage.translatedStream != null
         val isBeingTranslated = isPageBeingTranslated()
         val newName = currentPage.translation?.displayImageName(colorizationEnabled)
+        val hasDisplayImage = newName != null
+        val isDisplayReady = currentPage.translation?.let {
+            it.isColorizeOnlyComplete || it.isTranslationDisplayReady
+        } == true
 
         val wantTranslated = if (currentPage.translationToggled) {
-            currentPage.showTranslatedImage && streamAvailable
+            currentPage.showTranslatedImage && (streamAvailable || hasDisplayImage)
         } else {
-            showTranslations && streamAvailable
+            showTranslations && (streamAvailable || hasDisplayImage || isDisplayReady || currentPage.translation?.shouldShowTranslationOverlay == true)
         }
 
         val alreadyShowingCorrectImage = if (wantTranslated) {
-            newName != null && newName == lastShownImageName
+            if (newName != null) {
+                currentPage.showTranslatedImage && newName == lastShownImageName
+            } else {
+                currentPage.showTranslatedImage && lastShownImageName == null
+            }
         } else {
-            lastShownImageName == null
+            !currentPage.showTranslatedImage && lastShownImageName == null
         }
 
         when {
@@ -465,10 +514,6 @@ class WebtoonPageHolder(
                 }
             }
         }
-        // Record the image name we're now showing so the next refresh can
-        // short-circuit if nothing changed. When showing the original (not a
-        // translated stream) there's no name to track.
-        lastShownImageName = if (currentPage.showTranslatedImage) newName else null
         syncTranslateButtonState()
 
         val overlay = selectReaderTranslationOverlayBinding(currentPage.showTranslatedImage, currentPage.translation)

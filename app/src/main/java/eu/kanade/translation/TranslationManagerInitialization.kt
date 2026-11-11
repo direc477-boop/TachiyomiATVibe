@@ -120,6 +120,10 @@ internal fun TranslationManager.createCoordinatorRuntime(): TranslationManagerCo
                 mangaId = manga.id,
             )
         }
+        // Batch completion flips durable statuses (and creates companion
+        // artifacts) for every chapter it touched; drop the durable caches and
+        // the provider's directory memos so the manga screen re-resolves.
+        durableStatusResolver.clearDurableStatusCache()
     },
     batchCoordinatorOverride = testConstruction?.batchCoordinator,
     scope = applicationScope,

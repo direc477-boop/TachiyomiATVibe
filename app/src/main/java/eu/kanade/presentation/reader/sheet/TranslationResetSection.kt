@@ -23,14 +23,14 @@ import tachiyomi.i18n.at.ATMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
- * Item-level data wipe section of the reader translation sheet:
- * single unified delete action with cascading removal of downloaded page,
- * translation, cleaned, and colored images.
+ * Destructive data section of the reader translation sheet: one chapter-wide
+ * purge behind an in-app confirm dialog that states exactly what is deleted.
+ * Originals and downloads are never touched; a running translation or
+ * colorization for the chapter is cancelled by the purge.
  */
 @Composable
 internal fun TranslationResetSection(
-    isPageShared: Boolean = false,
-    onDeletePageData: () -> Unit,
+    onResetChapterData: () -> Unit,
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
 
@@ -44,8 +44,8 @@ internal fun TranslationResetSection(
     ) {
         TranslationActionRow(
             icon = Icons.Outlined.DeleteOutline,
-            title = stringResource(ATMR.strings.action_delete_page_data),
-            subtitle = stringResource(ATMR.strings.reader_translation_reset_summary),
+            title = stringResource(ATMR.strings.action_reset_chapter_data),
+            subtitle = stringResource(ATMR.strings.reader_translation_reset_chapter_summary),
             onClick = { showConfirmDialog = true },
             danger = true,
         )
@@ -54,24 +54,17 @@ internal fun TranslationResetSection(
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            title = { Text(stringResource(ATMR.strings.reader_delete_page_confirm_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        if (isPageShared) ATMR.strings.reader_delete_page_confirm_message_shared
-                        else ATMR.strings.reader_delete_page_confirm_message,
-                    ),
-                )
-            },
+            title = { Text(stringResource(ATMR.strings.reader_delete_chapter_confirm_title)) },
+            text = { Text(stringResource(ATMR.strings.reader_delete_chapter_confirm_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showConfirmDialog = false
-                        onDeletePageData()
+                        onResetChapterData()
                     },
                 ) {
                     Text(
-                        stringResource(MR.strings.action_delete),
+                        stringResource(ATMR.strings.action_reset_chapter_data),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }

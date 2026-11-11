@@ -54,7 +54,9 @@ internal class MangaLightHybridColorizationEngine(private val context: Context) 
         val inferred = System.nanoTime()
         require(output.size == SIZE * SIZE * 3 && output.all(Float::isFinite)) { "Invalid Manga Light output" }
         val work = MangaColorizationImageProcessing.interleavedRgb01ToBitmap(
-            FloatArray(output.size) { ((output[it] + 1f) * 0.5f).coerceIn(0f, 1f) }, SIZE, SIZE,
+            FloatArray(output.size) { ((output[it] + 1f) * 0.5f).coerceIn(0f, 1f) },
+            SIZE,
+            SIZE,
         )
         return try {
             MangaColorizationImageProcessing.combineColoredWithSource(source, work)
@@ -100,11 +102,13 @@ internal class MangaLightHybridColorizationEngine(private val context: Context) 
             val level0 = samLevel0ToNhwc(nchw)
             val level1 = features.getValue("sam_level1")
             check(level1.size == 256 * 32 * 32) { "Invalid SAM level 1" }
-            return generator.run(mapOf(
-                "L_bw" to FloatArray(luma.size) { luma[it] * 2f - 1f },
-                "sam_level0" to level0,
-                "sam_level1" to level1,
-            )).getValue("rgb_pred")
+            return generator.run(
+                mapOf(
+                    "L_bw" to FloatArray(luma.size) { luma[it] * 2f - 1f },
+                    "sam_level0" to level0,
+                    "sam_level1" to level1,
+                ),
+            ).getValue("rgb_pred")
         }
 
         override fun close() {
@@ -231,8 +235,12 @@ internal class MangaLightHybridColorizationEngine(private val context: Context) 
         internal fun samLevel0ToNhwc(nchw: FloatArray): FloatArray {
             require(nchw.size == 256 * 64 * 64) { "Invalid SAM level 0" }
             val output = FloatArray(nchw.size)
-            for (y in 0 until 64) for (x in 0 until 64) for (c in 0 until 256) {
-                output[(y * 64 + x) * 256 + c] = nchw[(c * 64 + y) * 64 + x]
+            for (y in 0 until 64) {
+                for (x in 0 until 64) {
+                    for (c in 0 until 256) {
+                        output[(y * 64 + x) * 256 + c] = nchw[(c * 64 + y) * 64 + x]
+                    }
+                }
             }
             return output
         }

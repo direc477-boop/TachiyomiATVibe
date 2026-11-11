@@ -247,6 +247,7 @@ internal class BatchPageOperation(
             }
 
             val commit = try {
+                processor.handOffColoredBitmapForDisplay(page)
                 store.updatePageFromCurrentSnapshot(pageKey, "batch:colorize-commit") { page }
             } finally {
                 processor.releasePageBitmaps(page)
@@ -469,6 +470,7 @@ internal class BatchPageOperation(
 
                     // Commit final bundle
                     try {
+                        processor.handOffColoredBitmapForDisplay(translatedPage)
                         store.updatePageFromCurrentSnapshot(pageKey, "batch:commit") { translatedPage }
                     } finally {
                         processor.releasePageBitmaps(translatedPage)

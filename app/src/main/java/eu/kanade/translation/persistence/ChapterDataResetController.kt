@@ -1,8 +1,8 @@
 package eu.kanade.translation.persistence
 
+import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.translation.coordinator.BatchTranslationCoordinator
-import eu.kanade.translation.model.PageTranslation
 import eu.kanade.translation.persistence.ActiveChapterStoreRegistry
 import eu.kanade.translation.persistence.ChapterArtifactDeletionPlan
 import eu.kanade.translation.persistence.ChapterResetReceipt
@@ -37,7 +37,7 @@ internal class ChapterDataResetController(
     private val unregisterActiveTranslationStoreFn: suspend (Long) -> Unit,
     private val streamRegistryProvider: () -> TranslationStreamRegistry,
     private val providerProvider: () -> TranslationFileProvider,
-    private val retireChapterCompanionImagesFn: (Manga, Chapter, Source) -> Unit,
+    private val retireChapterCompanionImagesFn: (Manga, Chapter, Source) -> Int,
     private val retirePageCompanionImageFn: (Manga, Chapter, Source, String, String, () -> Boolean) -> Unit,
     private val durableStatusResolverProvider: () -> DurableChapterStatusResolver,
     private val activeStoresProvider: () -> ActiveChapterStoreRegistry,
@@ -48,6 +48,8 @@ internal class ChapterDataResetController(
         String,
         Source,
     ) -> ChapterTranslationStore?,
+    /** Injectable so tests can drive the deletion plan over an in-memory io tree. */
+    private val chapterIoFactory: (UniFile) -> ChapterDocumentIo = ::UniFileChapterDocumentIo,
 ) {
 
     // Resolve manager-owned dependencies at call time without retaining second owners.
@@ -111,7 +113,7 @@ internal class ChapterDataResetController(
         val artifactDeletionPlan = deletionDocument?.let { document ->
             withContext(Dispatchers.IO) {
                 ChapterArtifactDeletionPlan.capture(
-                    UniFileChapterDocumentIo(document.parent),
+                    chapterIoFactory(document.parent),
                     document.fileName,
                 )
             }
@@ -139,9 +141,13 @@ internal class ChapterDataResetController(
         streamRegistry.clearChapter(source.id, manga.id, chapterId)
         val failures = mutableListOf<String>()
         var authorityRemoved = true
+        var removedFiles = 0
+        var removedDirs = 0
         artifactDeletionPlan?.let { plan ->
             val result = withContext(Dispatchers.IO) { plan.delete() }
             authorityRemoved = result.manifestRemoved
+            removedFiles += result.removedFiles
+            removedDirs += result.removedDirs
             if (result.destructiveCheckpointUnverified) {
                 failures += "destructive checkpoint unverified: chapter=${chapter.name}"
             }
@@ -155,77 +161,9 @@ internal class ChapterDataResetController(
             }
             // Legacy flat files are deliberately retained; deletion only owns manifest artifacts.
         }
-        if (authorityRemoved) retireChapterCompanionImages(manga, chapter, source)
+        if (authorityRemoved) removedFiles += retireChapterCompanionImages(manga, chapter, source)
         durableStatusResolver.clearDurableStatusCache()
-        return ChapterResetReceipt.incomplete(failures)
-    }
-
-    suspend fun resetTranslationData(
-        chapter: Chapter,
-        manga: Manga,
-        source: Source,
-        pageKey: String,
-    ): ChapterResetReceipt {
-        val chapterId = chapter.id ?: return ChapterResetReceipt.COMPLETE
-        durableStatusResolver.clearDurableStatusCache()
-        cancelPageTranslation(chapterId, pageKey)
-        streamRegistry.clearPage(source.id, manga.id, chapterId, pageKey)
-        val failures = mutableListOf<String>()
-
-        val store = activeStores.get(chapterId)
-        if (store != null) {
-            resetPageTranslationData(store, pageKey, failures)
-        } else {
-            openExistingChapterTranslationStore(
-                chapterId,
-                chapter.name,
-                chapter.scanlator,
-                manga.title,
-                source,
-            )?.let { s ->
-                resetPageTranslationData(s, pageKey, failures)
-            }
-        }
-
-        // Reconcile batch progress so summary drops cleared data
-        reconcileBatchProgress(chapterId)
-        return ChapterResetReceipt.incomplete(failures)
-    }
-
-    private suspend fun resetPageTranslationData(
-        store: ChapterTranslationStore,
-        pageKey: String,
-        failures: MutableList<String>,
-    ) {
-        store.updatePageFromCurrentSnapshot(pageKey, "translation data reset") { page ->
-            page ?: return@updatePageFromCurrentSnapshot eu.kanade.translation.model.PageTranslation.EMPTY
-            // Hand-edited blocks survive verbatim: clearing their text would
-            // make the AI apply path skip them as user edits and pin the page
-            // on empty translations instead of re-translating.
-            val newBlocks = page.blocks.map { block ->
-                if (block.userEditedAt != null) {
-                    block
-                } else {
-                    block.copy(
-                        translation = "",
-                        textColor = 0xFF000000,
-                        strokeColor = 0xFFFFFFFF,
-                        strokeWidth = 0f,
-                    )
-                }
-            }.toMutableList()
-
-            page.copy(
-                blocks = newBlocks,
-                translationStatus = eu.kanade.translation.model.StageStatus.PENDING,
-                renderStatus = eu.kanade.translation.model.StageStatus.PENDING,
-            ).also {
-                it.translationError = null
-                it.renderError = null
-            }
-        }
-        store.demoteCommittedDisplay(pageKey, "translation data reset")?.let { failures += "$pageKey: $it" }
-        store.flush()
+        return ChapterResetReceipt.incomplete(failures, removedFiles, removedDirs)
     }
 
     suspend fun resetOcrData(chapter: Chapter, manga: Manga, source: Source, pageKey: String): ChapterResetReceipt {

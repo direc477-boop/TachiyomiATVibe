@@ -32,6 +32,11 @@ class ChapterArtifactDeletionTest {
         result.complete shouldBe true
         result.manifestRemoved shouldBe true
         result.artifactTreeRemoved shouldBe true
+        // The destructive checkpoint consumes the seeded .tmp/.bak during its
+        // verified publication, so the counted siblings are primary, .bak and
+        // the corrupt quarantine, plus the artifact payload.
+        result.removedFiles shouldBe 4
+        result.removedDirs shouldBe 3
         io.exists(layout.manifestFileName) shouldBe false
         io.exists("${layout.manifestFileName}.tmp") shouldBe false
         io.exists("${layout.manifestFileName}.bak") shouldBe false
@@ -43,6 +48,32 @@ class ChapterArtifactDeletionTest {
         io.exists("Chapter 1.json.migrated") shouldBe true
         io.exists("Chapter 1.glossary.json.migrated") shouldBe true
         ChapterArtifactDeletionPlan.capture(io, "Chapter 1.json") shouldBe null
+    }
+
+    @Test
+    fun `purge counts every nested file and directory and leaves foreign documents untouched`() {
+        val io = FakeChapterDocumentIo()
+        AtomicChapterDocuments(io).publishJson(layout.manifestFileName, manifest()) shouldBe true
+        io.write("${layout.artifactRootDirectoryName}/pages/0001/committed-a.json", byteArrayOf(1)) shouldBe true
+        io.write("${layout.artifactRootDirectoryName}/pages/0002/committed-b.json", byteArrayOf(2)) shouldBe true
+        io.write("${layout.artifactRootDirectoryName}/images/0001/gen-fp.jpg", byteArrayOf(3)) shouldBe true
+        // An empty managed directory (envelopes) counts as a directory, not a file.
+        io.write("${layout.artifactRootDirectoryName}/envelopes/tmp", byteArrayOf(4)) shouldBe true
+        io.delete("${layout.artifactRootDirectoryName}/envelopes/tmp") shouldBe true
+        io.write("cover.jpg", byteArrayOf(5)) shouldBe true
+        io.write("Chapter 2.manifest.json", byteArrayOf(6)) shouldBe true
+
+        val result = ChapterArtifactDeletionPlan.capture(io, "Chapter 1.json")
+            .shouldNotBeNull()
+            .delete()
+
+        result.complete shouldBe true
+        result.removedFiles shouldBe 5
+        result.removedDirs shouldBe 7
+        io.exists(layout.manifestFileName) shouldBe false
+        io.exists(layout.artifactRootDirectoryName) shouldBe false
+        io.exists("cover.jpg") shouldBe true
+        io.exists("Chapter 2.manifest.json") shouldBe true
     }
 
     @Test

@@ -9,16 +9,29 @@ import com.google.ai.edge.litert.TensorBuffer
 import com.google.ai.edge.litert.TensorType
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.translation.TranslationPreferences
 import java.io.File
 import java.io.FileNotFoundException
 
 /** SM8650 NPU MCV2 W8A8 route: HARD FAIL, no fallback; cross-series-calibrated artifact. */
 internal class NpuMangaColorizationEngine(
     private val deps: Dependencies,
+    private val ffdnetEngine: FfdnetDenoiserEngine? = null,
+    private val preferFfdnetDenoising: () -> Boolean = { false },
 ) : PageColorizationEngine {
 
     /** Production wiring: the Android context drives artifact, pre-check, and LiteRT. */
-    constructor(context: Context) : this(Dependencies.from(context))
+    constructor(
+        context: Context,
+        preferences: TranslationPreferences? = null,
+        ffdnetEngine: FfdnetDenoiserEngine? = null,
+    ) : this(
+        deps = Dependencies.from(context),
+        ffdnetEngine = ffdnetEngine ?: FfdnetDenoiserEngine(context),
+        preferFfdnetDenoising = { preferences?.preferFfdnetDenoising()?.get() == true },
+    )
+
+    constructor(context: Context) : this(context, null, null)
 
     /** One live compiled model with its bound buffers and owning environment. */
     private class Session(
@@ -66,7 +79,11 @@ internal class NpuMangaColorizationEngine(
     @Synchronized
     override fun currentStamp(): String? {
         val base = stamp ?: return null
-        return base + MangaColorizationPreprocessor.STAMP_SUFFIX
+        return base + if (preferFfdnetDenoising()) {
+            MangaColorizationPreprocessor.STAMP_FFDNET_SUFFIX
+        } else {
+            MangaColorizationPreprocessor.STAMP_SUFFIX
+        }
     }
 
     @Synchronized
@@ -84,10 +101,31 @@ internal class NpuMangaColorizationEngine(
         }
         // Quality-only preprocessing on the aspect-preserved content rect; padding
         // is applied strictly after, and stage failures degrade to the plain downsample.
-        val preprocessed = MangaColorizationPreprocessor.grayPlane(source, letterbox.width, letterbox.height)
-        logcat(LogPriority.INFO) {
-            "[Mcv2NpuColor] ScreentoneSmooth score=" + preprocessed.score +
-                " smoothed=" + preprocessed.smoothingApplied
+        val useFfdnet = preferFfdnetDenoising()
+        val preprocessed = if (useFfdnet) {
+            val engine = checkNotNull(ffdnetEngine) {
+                "FFDNet denoising enabled but FfdnetDenoiserEngine is null"
+            }
+            check(engine.isAvailable()) {
+                "FFDNet denoising unavailable: ${engine.initializationError() ?: "unknown"}"
+            }
+            val res = MangaColorizationPreprocessor.ffdnetGrayPlane(
+                source,
+                letterbox.width,
+                letterbox.height,
+                engine,
+            )
+            logcat(LogPriority.INFO) {
+                "[Mcv2NpuColor] FFDNetSmooth native=${source.width}x${source.height} work=${letterbox.width}x${letterbox.height}"
+            }
+            res
+        } else {
+            val res = MangaColorizationPreprocessor.grayPlane(source, letterbox.width, letterbox.height)
+            logcat(LogPriority.INFO) {
+                "[Mcv2NpuColor] ScreentoneSmooth score=" + res.score +
+                    " smoothed=" + res.smoothingApplied
+            }
+            res
         }
         val input = MangaColorizationPreprocessor.grayNchwFromGrayPlane(
             preprocessed.plane,
@@ -125,6 +163,7 @@ internal class NpuMangaColorizationEngine(
         session?.let { runCatching { it.runtime.close() } }
         session = null
         stamp = null
+        ffdnetEngine?.let { runCatching { it.close() } }
     }
 
     /** Test seam separating engine policy from Android/LiteRT plumbing; tests substitute fakes. */
@@ -317,9 +356,9 @@ internal class NpuMangaColorizationEngine(
         const val KEY_EXTRACTED_SIZE = "extracted_size_"
         const val KEY_SHA256 = "sha256_"
 
-        // The cross-series-calibrated W8A8 apply_plugin artifact (mixed manga+SASA
-        // calibration; 35.60 dB held-out via evaluate_cross_series.py).
-        const val EXPECTED_ARTIFACT_SHA256 = "d687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9"
+        // The recipe-calibrated W8A8 apply_plugin artifact (author FFDNet sigma=25
+        // calibration; 38.46 dB held-out).
+        const val EXPECTED_ARTIFACT_SHA256 = "d60e18b2c64a11c25256969b24532747c06d9cad10327ec68281cd1ac0e94b83"
 
         const val STAMP_PREFIX = "MC_V2_LITERT_NPU_W8A8_SM8650_832x576"
 

@@ -104,6 +104,11 @@ class TranslationManagerDeleteResetOrderingTest {
             log("findCompanionImageDir")
             null
         }
+        // Retirement resolves the directory through the provider's memoized
+        // read; delegate so the ordering event still fires.
+        every { provider.findCompanionImageDirMemoized(any(), any(), any(), any()) } answers {
+            provider.findCompanionImageDir(arg(0), arg(1), arg(2), arg(3))
+        }
         every { provider.findPageCleanedImage(any(), any(), any(), any(), any()) } answers {
             log("findPageCleanedImage")
             null

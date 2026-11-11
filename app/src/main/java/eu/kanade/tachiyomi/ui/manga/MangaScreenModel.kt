@@ -53,7 +53,6 @@ import eu.kanade.translation.model.TranslationRequestState
 import eu.kanade.translation.presentation.TranslationUiProjection
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
@@ -522,14 +521,17 @@ class MangaScreenModel(
             ) { mangaAndChapters, _, _, _, _ -> mangaAndChapters }
                 .flowWithLifecycle(lifecycle)
                 .collectLatest { (manga, chapters) ->
+                    // Two-phase list (TachiyomiAT): emit the base list
+                    // immediately, then resolve durable translation badges in
+                    // this collector's background pass — collectLatest cancels
+                    // the previous pass, so passes never overlap.
                     updateSuccessState {
                         it.copy(
                             manga = manga,
-                            // toChapterListItems is suspend and runs on IO collector
-                            // to avoid blocking Main during durable status queries.
-                            chapters = chapters.toChapterListItems(manga),
+                            chapters = chapters.toBaseChapterListItems(manga),
                         )
                     }
+                    resolveTranslationStatesAndPatch(manga, successState?.chapters ?: return@collectLatest)
                 }
         }
 
@@ -563,7 +565,7 @@ class MangaScreenModel(
         screenModelScope.launchIO {
             val manga = getMangaAndChapters.awaitManga(mangaId)
             val chapters = getMangaAndChapters.awaitChapters(mangaId, applyScanlatorFilter = true)
-                .toChapterListItems(manga)
+                .toBaseChapterListItems(manga)
 
             if (!manga.favorite) {
                 setMangaDefaultChapterFlags.await(manga)
@@ -585,6 +587,10 @@ class MangaScreenModel(
                     dialog = null,
                 )
             }
+
+            // Two-phase list (TachiyomiAT): the durable badge pass runs after
+            // the first Success emission so list entry never waits on SAF.
+            resolveTranslationStatesAndPatch(manga, chapters)
 
             // Start observe tracking since it only needs mangaId
             observeTrackers()
@@ -694,8 +700,21 @@ class MangaScreenModel(
     }
 
     // Suspend for IO coroutines; internal for snapshot-retention unit tests.
-    internal suspend fun List<Chapter>.toChapterListItems(manga: Manga): List<ChapterList.Item> {
+    internal suspend fun List<Chapter>.toChapterListItems(manga: Manga): List<ChapterList.Item> =
+        toBaseChapterListItems(manga).also { resolveTranslationStatesAndPatch(manga, it) }
+
+    /**
+     * Base chapter items from DB + DownloadCache alone — no durable SAF
+     * lookup, so the list renders instantly. Durable badges resolve in a
+     * background pass ([resolveTranslationStatesAndPatch]); until then items
+     * carry over the badge already on screen so a rebuild cannot flicker it
+     * off.
+     */
+    private suspend fun List<Chapter>.toBaseChapterListItems(manga: Manga): List<ChapterList.Item> {
         val isLocal = manga.isLocal()
+        val carriedStates = successState?.chapters
+            ?.associateBy({ it.chapter.id }) { it.translationState }
+            .orEmpty()
         return map { chapter ->
             val activeDownload = if (isLocal) {
                 null
@@ -716,13 +735,7 @@ class MangaScreenModel(
             val queuedTranslation = chapter.id?.let(translationManager::getQueuedTranslationOrNull)
             val translationRequest = chapter.id?.let { translationManager.pendingTranslationRequests.value[it] }
             val persistedTranslationState = if (downloadState == Download.State.DOWNLOADED) {
-                translationManager.getChapterTranslationStatus(
-                    chapter.id,
-                    chapter.name,
-                    chapter.scanlator,
-                    manga.title,
-                    manga.source,
-                )
+                carriedStates[chapter.id]
             } else {
                 null
             }
@@ -732,15 +745,7 @@ class MangaScreenModel(
                 requestState = translationRequest,
                 downloaded = downloadState == Download.State.DOWNLOADED,
             )
-            // Durably FAILED or READY_WITH_WARNINGS chapters must surface terminal
-            // progress so the drawer can offer restart/retry after app restart.
-            val durableTerminal =
-                translationState == eu.kanade.translation.model.Translation.State.ERROR ||
-                    translationState == eu.kanade.translation.model.Translation.State.READY_WITH_WARNINGS
-            if (queuedTranslation != null ||
-                translationRequest != null ||
-                durableTerminal
-            ) {
+            if (queuedTranslation != null || translationRequest != null) {
                 chapter.id?.let { id ->
                     observeTranslationProgress(id, durableStateHint = translationState)
                 }
@@ -756,6 +761,56 @@ class MangaScreenModel(
                 translationRequest = translationRequest,
             )
         }.carryingTranslationSnapshots(translationSnapshots)
+    }
+
+    /**
+     * Background badge pass for the two-phase list: resolves durable
+     * translation states for downloaded chapters (cheap — the manager caches
+     * statuses and directory listings) and patches the list in one diffed
+     * update keyed by chapter id, so unrelated items keep identity and scroll
+     * state never resets.
+     */
+    private suspend fun resolveTranslationStatesAndPatch(manga: Manga, baseItems: List<ChapterList.Item>) {
+        val resolvedStates = mutableMapOf<Long, Translation.State?>()
+        val terminalHintById = mutableMapOf<Long, Translation.State>()
+        for (item in baseItems) {
+            if (item.downloadState != Download.State.DOWNLOADED) continue
+            val chapter = item.chapter
+            val chapterId = chapter.id ?: continue
+            val resolved = translationManager.getChapterTranslationStatus(
+                chapter.id,
+                chapter.name,
+                chapter.scanlator,
+                manga.title,
+                manga.source,
+            )
+            resolvedStates[chapterId] = resolved
+            // Durably FAILED or READY_WITH_WARNINGS chapters must surface terminal
+            // progress so the drawer can offer restart/retry after app restart.
+            if (resolved == Translation.State.ERROR || resolved == Translation.State.READY_WITH_WARNINGS) {
+                terminalHintById[chapterId] = resolved
+            }
+        }
+        updateSuccessState { current ->
+            val patched = current.chapters.map { item ->
+                val chapterId = item.chapter.id ?: return@map item
+                if (!resolvedStates.containsKey(chapterId)) return@map item
+                val chapter = item.chapter
+                val queuedTranslation = chapter.id?.let(translationManager::getQueuedTranslationOrNull)
+                val translationRequest = chapter.id?.let { translationManager.pendingTranslationRequests.value[it] }
+                val translationState = TranslationUiProjection.chapterState(
+                    queuedState = queuedTranslation?.status,
+                    persistedState = resolvedStates[chapterId],
+                    requestState = translationRequest,
+                    downloaded = true,
+                )
+                if (translationState == item.translationState) item else item.copy(translationState = translationState)
+            }
+            if (patched == current.chapters) current else current.copy(chapters = patched)
+        }
+        terminalHintById.keys.forEach { chapterId ->
+            observeTranslationProgress(chapterId, durableStateHint = terminalHintById[chapterId])
+        }
     }
 
     /**

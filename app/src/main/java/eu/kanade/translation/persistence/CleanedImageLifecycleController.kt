@@ -83,7 +83,7 @@ internal class CleanedImageLifecycleController(
                             imageName = imageName,
                         ) {
                             if (!store.mayDeleteImage(pageKey, imageName)) return@retireCleanedImage
-                            val deleted = provider.findPageCleanedImage(
+                            val deleted = provider.findPageCleanedImageMemoized(
                                 mangaTitle,
                                 source,
                                 chapterName,
@@ -91,7 +91,7 @@ internal class CleanedImageLifecycleController(
                                 imageName,
                             )?.delete() == true
                             if (deleted) {
-                                provider.findPageCleanedImage(
+                                provider.findPageCleanedImageMemoized(
                                     mangaTitle,
                                     source,
                                     chapterName,
@@ -130,7 +130,7 @@ internal class CleanedImageLifecycleController(
         source: Source,
         mangaId: Long,
     ) {
-        val directory = provider.findCompanionImageDir(mangaTitle, source, chapterName, scanlator) ?: return
+        val directory = provider.findCompanionImageDirMemoized(mangaTitle, source, chapterName, scanlator) ?: return
         val referenced = store.referencedCleanedImageNames() + store.referencedColoredImageNames()
         val pageKeys = store.state.value.keys
         val now = System.currentTimeMillis()
@@ -189,13 +189,19 @@ internal class CleanedImageLifecycleController(
             }
     }
 
+    /**
+     * Retires every derived companion image of the chapter (cleaned, colored,
+     * rendered), keeping `.nomedia`. Returns the number of image files retired;
+     * the deferred lease case still deletes them later, the count reports the
+     * submitted set.
+     */
     fun retireChapterCompanionImages(
         manga: Manga,
         chapter: Chapter,
         source: Source,
-    ) {
-        val chapterId = chapter.id ?: return
-        val directory = provider.findCompanionImageDir(manga.title, source, chapter.name, chapter.scanlator)
+    ): Int {
+        val chapterId = chapter.id ?: return 0
+        val directory = provider.findCompanionImageDirMemoized(manga.title, source, chapter.name, chapter.scanlator)
         val namesAtRetirement = directory
             ?.listFiles()
             ?.asSequence()
@@ -212,6 +218,7 @@ internal class CleanedImageLifecycleController(
                 directory?.findFile(imageName)?.delete()
             }
         }
+        return namesAtRetirement.size
     }
 
     fun retirePageCompanionImage(
@@ -231,7 +238,7 @@ internal class CleanedImageLifecycleController(
             imageName = imageName,
         ) {
             if (isReferencedElsewhere()) return@retireCleanedImage
-            val imageDeleted = provider.findPageCleanedImage(
+            val imageDeleted = provider.findPageCleanedImageMemoized(
                 manga.title,
                 source,
                 chapter.name,
@@ -239,7 +246,7 @@ internal class CleanedImageLifecycleController(
                 imageName,
             )?.let { !it.exists() || it.delete() } ?: true
             if (imageDeleted) {
-                provider.findPageCleanedImage(
+                provider.findPageCleanedImageMemoized(
                     manga.title,
                     source,
                     chapter.name,
@@ -261,7 +268,13 @@ internal class CleanedImageLifecycleController(
         chapterId: Long? = null,
     ): (() -> java.io.InputStream)? {
         return {
-            val file = provider.findPageCleanedImage(mangaTitle, source, chapterName, chapterScanlator, cleanedImageName)
+            val file = provider.findPageCleanedImageMemoized(
+                mangaTitle,
+                source,
+                chapterName,
+                chapterScanlator,
+                cleanedImageName,
+            )
             if (file?.exists() == true) {
                 val raw = { file.openInputStream() }
                 if (pageKey == null || mangaId == null || chapterId == null) {

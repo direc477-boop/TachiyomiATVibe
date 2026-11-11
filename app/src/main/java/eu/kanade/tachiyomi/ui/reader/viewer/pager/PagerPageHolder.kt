@@ -2,7 +2,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.PointF
+import android.graphics.drawable.BitmapDrawable
 import android.view.LayoutInflater
 import androidx.core.view.isVisible
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
@@ -19,7 +21,9 @@ import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.widget.ViewPagerAdapter
 import eu.kanade.translation.diagnostics.TelemetryTrace
 import eu.kanade.translation.model.displayImageName
+import eu.kanade.translation.model.isColorizeOnlyComplete
 import eu.kanade.translation.model.isStageRunning
+import eu.kanade.translation.model.isTranslationDisplayReady
 import eu.kanade.translation.model.shouldShowTranslationOverlay
 import eu.kanade.translation.model.toPageDisplayProjection
 import kotlinx.coroutines.CoroutineScope
@@ -129,6 +133,27 @@ class PagerPageHolder(
      * Null means "we have not yet rendered a translated image for this holder".
      */
     private var lastShownImageName: String? = null
+
+    /**
+     * TachiyomiAT: colored bitmap handed over by a colorize commit for this
+     * page (F4 fast swap). Ownership sits here: recycled when the displayed
+     * image is replaced or when the adapter destroys the holder.
+     */
+    private var handoffBitmap: Bitmap? = null
+
+    /** Recycles the handed-off bitmap once nothing displays it. */
+    fun releaseHandoffBitmap() {
+        handoffBitmap?.let { if (!it.isRecycled) it.recycle() }
+        handoffBitmap = null
+    }
+
+    private fun imageConfig() = ReaderPageImageView.Config(
+        zoomDuration = viewer.config.doubleTapAnimDuration,
+        minimumScaleType = viewer.config.imageScaleType,
+        cropBorders = viewer.config.imageCropBorders,
+        zoomStartPosition = viewer.config.imageZoomType,
+        landscapeZoom = viewer.config.landscapeZoom,
+    )
 
     init {
         // TachiyomiAT: init only seeds durable state + wires click handlers.
@@ -379,6 +404,22 @@ class PagerPageHolder(
         // with the durable running-stage state.
         syncTranslateButtonState()
 
+        // TachiyomiAT: a colorize commit for this visible page hands over its
+        // in-memory bitmap — skip the SAF stream open and full decode entirely.
+        if (page.showTranslatedImage) {
+            val handoffName = page.translation?.displayImageName(colorizationEnabled)
+            val handoff = handoffName?.let(viewer.activity.viewModel::pollColoredBitmapHandoff)
+            if (handoff != null) {
+                val previous = handoffBitmap
+                handoffBitmap = handoff
+                setImage(BitmapDrawable(context.resources, handoff), imageConfig())
+                syncTranslateButtonState()
+                removeErrorLayout()
+                previous?.let { if (!it.isRecycled) it.recycle() }
+                return
+            }
+        }
+
         try {
             val (source, isAnimated, background) = withIOContext {
                 val startNanos = System.nanoTime()
@@ -408,14 +449,10 @@ class PagerPageHolder(
                 setImage(
                     source,
                     isAnimated,
-                    Config(
-                        zoomDuration = viewer.config.doubleTapAnimDuration,
-                        minimumScaleType = viewer.config.imageScaleType,
-                        cropBorders = viewer.config.imageCropBorders,
-                        zoomStartPosition = viewer.config.imageZoomType,
-                        landscapeZoom = viewer.config.landscapeZoom,
-                    ),
+                    imageConfig(),
                 )
+                // A decoded file image replaced any handed-off bitmap on screen.
+                releaseHandoffBitmap()
                 if (!isAnimated) {
                     pageBackground = background
                 }
@@ -440,17 +477,25 @@ class PagerPageHolder(
     fun refreshTranslation() {
         val streamAvailable = page.translatedStream != null
         val newName = page.translation?.displayImageName(colorizationEnabled)
+        val hasDisplayImage = newName != null
+        val isDisplayReady = page.translation?.let {
+            it.isColorizeOnlyComplete || it.isTranslationDisplayReady
+        } == true
 
         val wantTranslated = if (page.translationToggled) {
-            page.showTranslatedImage && streamAvailable
+            page.showTranslatedImage && (streamAvailable || hasDisplayImage)
         } else {
-            showTranslations && streamAvailable
+            showTranslations && (streamAvailable || hasDisplayImage || isDisplayReady || page.translation?.shouldShowTranslationOverlay == true)
         }
 
         val alreadyShowingCorrectImage = if (wantTranslated) {
-            newName != null && newName == lastShownImageName
+            if (newName != null) {
+                page.showTranslatedImage && newName == lastShownImageName
+            } else {
+                page.showTranslatedImage && lastShownImageName == null
+            }
         } else {
-            lastShownImageName == null
+            !page.showTranslatedImage && lastShownImageName == null
         }
 
         if (wantTranslated) {
@@ -468,12 +513,6 @@ class PagerPageHolder(
         }
 
         syncTranslateButtonState()
-        // Remember the image name we're now showing so the next
-        // refreshTranslation() can short-circuit if nothing changed. When showing
-        // the original (not a translated stream) there's no name to track.
-        lastShownImageName = if (page.showTranslatedImage) newName else null
-        syncTranslateButtonState()
-
         prepareTranslationImage(page.showTranslatedImage)
         val overlay = selectReaderTranslationOverlayBinding(page.showTranslatedImage, page.translation)
         viewer.activity.runOnUiThread {

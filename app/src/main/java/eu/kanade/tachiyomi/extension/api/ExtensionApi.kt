@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
-import eu.kanade.tachiyomi.network.parseAs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.KSerializer
@@ -448,10 +447,13 @@ internal data class ProtoSource(
 internal enum class ProtoContentWarning {
     @ProtoNumber(0)
     UNSPECIFIED,
+
     @ProtoNumber(1)
     SAFE,
+
     @ProtoNumber(2)
     MIXED,
+
     @ProtoNumber(3)
     NSFW,
 }

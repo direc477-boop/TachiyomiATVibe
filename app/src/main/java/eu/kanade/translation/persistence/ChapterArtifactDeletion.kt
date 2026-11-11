@@ -17,6 +17,10 @@ data class ChapterArtifactDeletionResult(
      * backup until a retry completes the removal.
      */
     val destructiveCheckpointUnverified: Boolean = false,
+    /** Files actually removed across manifest siblings and the artifact tree. */
+    val removedFiles: Int = 0,
+    /** Directories actually removed inside the artifact tree, including its root. */
+    val removedDirs: Int = 0,
 ) {
     val complete: Boolean get() = failures.isEmpty()
 }
@@ -51,6 +55,8 @@ class ChapterArtifactDeletionPlan private constructor(
     fun delete(): ChapterArtifactDeletionResult {
         val failures = mutableListOf<String>()
         var checkpointUnverified = false
+        var removedFiles = 0
+        var removedDirs = 0
         val documents = AtomicChapterDocuments(io)
         val engine = ChapterArtifactEngine(documents, layout)
         when (
@@ -74,7 +80,11 @@ class ChapterArtifactDeletionPlan private constructor(
         var manifestRemoved = true
 
         manifestSiblingNames.forEach { name ->
-            if (!deleteIfPresent(name, failures)) manifestRemoved = false
+            when (deleteCountingIfPresent(name, failures)) {
+                DeleteOutcome.ABSENT -> Unit
+                DeleteOutcome.REMOVED -> removedFiles++
+                DeleteOutcome.FAILED -> manifestRemoved = false
+            }
         }
         if (!manifestRemoved) {
             logcat(LogPriority.ERROR) {
@@ -89,20 +99,53 @@ class ChapterArtifactDeletionPlan private constructor(
             )
         }
 
-        val artifactTreeRemoved = deleteIfPresent(layout.artifactRootDirectoryName, failures)
+        // Count the tree before the single destructive root removal: UniFile/SAF
+        // delete() drops a directory subtree wholesale and reports no contents.
+        val (treeFiles, treeDirs) = countTreeEntries(layout.artifactRootDirectoryName)
+        val artifactTreeRemoved = deleteCountingIfPresent(layout.artifactRootDirectoryName, failures).let {
+            if (it == DeleteOutcome.REMOVED) {
+                removedFiles += treeFiles
+                removedDirs += treeDirs + 1
+                true
+            } else {
+                it == DeleteOutcome.ABSENT
+            }
+        }
         return ChapterArtifactDeletionResult(
             manifestRemoved = true,
             artifactTreeRemoved = artifactTreeRemoved,
             failures = failures,
             destructiveCheckpointUnverified = checkpointUnverified,
+            removedFiles = removedFiles,
+            removedDirs = removedDirs,
         )
     }
 
-    private fun deleteIfPresent(name: String, failures: MutableList<String>): Boolean {
-        if (!io.exists(name)) return true
-        if (io.delete(name) || !io.exists(name)) return true
+    private enum class DeleteOutcome { ABSENT, REMOVED, FAILED }
+
+    private fun deleteCountingIfPresent(name: String, failures: MutableList<String>): DeleteOutcome {
+        if (!io.exists(name)) return DeleteOutcome.ABSENT
+        if (io.delete(name) || !io.exists(name)) return DeleteOutcome.REMOVED
         failures += name
-        return false
+        return DeleteOutcome.FAILED
+    }
+
+    /** Counts files and nested directories under [directoryName] via the io seam. */
+    private fun countTreeEntries(directoryName: String): Pair<Int, Int> {
+        var files = 0
+        var dirs = 0
+        for (child in io.list(directoryName).orEmpty()) {
+            val childName = "$directoryName/$child"
+            val childList = io.list(childName)
+            if (childList != null) {
+                val (childFiles, childDirs) = countTreeEntries(childName)
+                files += childFiles
+                dirs += childDirs + 1
+            } else {
+                files++
+            }
+        }
+        return files to dirs
     }
 
     companion object {
@@ -157,13 +200,22 @@ class ChapterArtifactDeletionPlan private constructor(
  */
 data class ChapterResetReceipt(
     val failures: List<String>,
+    val removedFiles: Int = 0,
+    val removedDirs: Int = 0,
 ) {
     val completed: Boolean get() = failures.isEmpty()
 
     companion object {
         val COMPLETE = ChapterResetReceipt(failures = emptyList())
 
-        fun incomplete(failures: List<String>): ChapterResetReceipt =
-            ChapterResetReceipt(failures = failures.filter { it.isNotBlank() }.distinct())
+        fun incomplete(
+            failures: List<String>,
+            removedFiles: Int = 0,
+            removedDirs: Int = 0,
+        ): ChapterResetReceipt = ChapterResetReceipt(
+            failures = failures.filter { it.isNotBlank() }.distinct(),
+            removedFiles = removedFiles,
+            removedDirs = removedDirs,
+        )
     }
 }

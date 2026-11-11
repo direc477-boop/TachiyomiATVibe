@@ -102,7 +102,7 @@ class EvictionOffMainTest {
             unregisterActiveTranslationStoreFn = { evictionThread.set(Thread.currentThread()) },
             streamRegistryProvider = { mockk<TranslationStreamRegistry>(relaxed = true) },
             providerProvider = { mockk<TranslationFileProvider>(relaxed = true) },
-            retireChapterCompanionImagesFn = { _, _, _ -> },
+            retireChapterCompanionImagesFn = { _, _, _ -> 0 },
             retirePageCompanionImageFn = { _, _, _, _, _, _ -> },
             durableStatusResolverProvider = { mockk<DurableChapterStatusResolver>(relaxed = true) },
             activeStoresProvider = { ActiveChapterStoreRegistry() },

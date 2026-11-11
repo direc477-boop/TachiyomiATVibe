@@ -5,8 +5,8 @@ import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.model.PageTranslation
 import eu.kanade.translation.model.PageTranslationView
 import eu.kanade.translation.model.PublishedPageTranslation
-import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.StageFingerprints
+import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.TranslationBlock
 import eu.kanade.translation.model.blockFingerprints

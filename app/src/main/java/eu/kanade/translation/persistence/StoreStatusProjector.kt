@@ -129,6 +129,7 @@ internal object ChapterStatusProjection {
             orderedKeys = expectedKeys,
             activeGeneration = activeGeneration,
             unexpectedPageKeys = unexpectedPageKeys,
+            manifestCommittedDoneKeys = manifest.pages.filterValues { it.isManifestCommittedTerminal }.keys,
         )
         // Expected totals can exceed registered pages after upgrade residue;
         // reconciliation represents that shortfall with placeholder keys.
@@ -212,6 +213,11 @@ internal object ChapterPageReconciler {
         orderedKeys: List<String>,
         activeGeneration: Long,
         unexpectedPageKeys: Set<String>,
+        // Manifest-only terminal evidence: page keys whose committed pointer and
+        // display state prove the page is done without opening its snapshot. The
+        // header-only status probe synthesizes fallback pages (no blocks), so
+        // snapshot-derived doneness alone cannot express a completed chapter.
+        manifestCommittedDoneKeys: Set<String> = emptySet(),
     ): ChapterPageReconciliation {
         val expectedKeys = orderedKeys.distinct()
         if (expectedKeys.isEmpty()) {
@@ -237,7 +243,8 @@ internal object ChapterPageReconciler {
                 failedCount++
                 continue
             }
-            if (page.runGeneration != activeGeneration && !page.hasRenderedResult && !page.isTextlessTerminal) {
+            val done = page.hasRenderedResult || page.isTextlessTerminal || pageKey in manifestCommittedDoneKeys
+            if (page.runGeneration != activeGeneration && !done) {
                 // A nonterminal page from another generation was skipped by the planner and never reached by the producer.
                 strandedPages[pageKey] =
                     "Translation incomplete — expected page was stranded by a prior run and not reached"
@@ -246,7 +253,7 @@ internal object ChapterPageReconciler {
             }
             when {
                 page.isStageFailed -> failedCount++
-                page.hasRenderedResult || page.isTextlessTerminal -> doneCount++
+                done -> doneCount++
                 // A partial candidate without rendered output is unreadable and remains retryable work.
                 page.translationStatus == eu.kanade.translation.model.StageStatus.PARTIAL -> {
                     partialCount++
@@ -298,6 +305,30 @@ internal object ChapterPageReconciler {
  * snapshot is available, so they share one committed/display-state
  * interpretation module.
  */
+
+/** Display states under which a committed pointer proves the page reached a displayable terminal. */
+private val MANIFEST_TERMINAL_DISPLAY_STATES = setOf(
+    PageDisplayState.DISPLAY_READY,
+    PageDisplayState.TEXTLESS_COMPLETE,
+    PageDisplayState.REFRESHING_WITH_COMMITTED_RESULT,
+    PageDisplayState.FAILED_WITH_COMMITTED_RESULT,
+    PageDisplayState.COLORIZE_ONLY_COMPLETE,
+)
+
+/**
+ * Manifest-only terminal evidence (header probe status): the record's
+ * committed pointer plus its last-known display state prove the page is done
+ * without reading the page snapshot. Base validity mirrors
+ * [toArtifactPageFallback]'s committed-display rule.
+ */
+internal val PageArtifactRecord.isManifestCommittedTerminal: Boolean
+    get() {
+        val committed = committed ?: return false
+        val base = committed.displayBase
+        val hasValidDisplayBase = base.kind == DisplayBaseKind.ORIGINAL_SOURCE ||
+            (base.kind == DisplayBaseKind.CLEANED_IMAGE && base.fileName != null && !base.legacyLayout)
+        return hasValidDisplayBase && displayState in MANIFEST_TERMINAL_DISPLAY_STATES
+    }
 
 /**
  * Manifest fallback used by the open path ([eu.kanade.translation.persistence.ChapterStoreOpener]):

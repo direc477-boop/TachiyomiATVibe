@@ -91,6 +91,11 @@ class CleanedImageLifecycleControllerTest {
         every { directory.findFile("$freshImageName.identity.json") } returns freshSidecar
         every { directory.findFile("$pairedImageName.identity.json") } returns pairedSidecar
         every { provider.findCompanionImageDir(any(), any(), any(), any()) } returns directory
+        // The sweep resolves the directory through the provider's memoized
+        // read; delegate so the stubbed directory still serves the sweep.
+        every { provider.findCompanionImageDirMemoized(any(), any(), any(), any()) } answers {
+            provider.findCompanionImageDir(arg(0), arg(1), arg(2), arg(3))
+        }
 
         val store = ChapterTranslationStore(artifactParentResolver = null)
         val controller = CleanedImageLifecycleController(

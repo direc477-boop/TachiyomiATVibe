@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BrightnessMedium
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Translate
@@ -47,11 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import eu.kanade.presentation.components.designsystem.DesignTokens
-import eu.kanade.presentation.components.designsystem.SectionHeading
 import eu.kanade.presentation.components.designsystem.SegmentedPillBar
-import eu.kanade.presentation.components.designsystem.SliderCard
 import eu.kanade.tachiyomi.ui.reader.TranslationSettingsState
-import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.ColorizationModel
 import tachiyomi.domain.translation.NeuralInpaintModel
@@ -61,9 +57,6 @@ import tachiyomi.domain.translation.TranslationEngineCategory
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.at.ATMR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Full-screen semi-transparent glassmorphism "mod menu" overlay for translation,
@@ -101,16 +94,9 @@ fun ReaderTranslationSheet(
     onTranslationAiBaseUrlChange: (String) -> Unit,
     onTranslationAiModelChange: (String) -> Unit,
     onFetchAiModels: () -> Unit,
-    isPageShared: Boolean = false,
-    onDeletePageData: () -> Unit = {},
-    onResetTranslationData: () -> Unit = {},
-    onResetOcrData: () -> Unit = {},
+    onResetChapterData: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val readerPreferences: ReaderPreferences = remember { Injekt.get() }
-    val customBrightness by readerPreferences.customBrightness().collectAsState()
-    val customBrightnessValue by readerPreferences.customBrightnessValue().collectAsState()
-
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf(
         stringResource(ATMR.strings.reader_tab_translation),
@@ -306,31 +292,10 @@ fun ReaderTranslationSheet(
                                     onTranslateButtonWithControlsChange = onTranslateButtonWithControlsChange,
                                     onResetFloaterPosition = onResetFloaterPosition,
                                 )
-                                SectionHeading(title = stringResource(ATMR.strings.reader_section_display_adjustment))
-                                Column(
-                                    modifier = Modifier
-                                        .padding(horizontal = 20.dp)
-                                        .fillMaxWidth(),
-                                ) {
-                                    SliderCard(
-                                        icon = Icons.Outlined.BrightnessMedium,
-                                        label = stringResource(ATMR.strings.reader_brightness_level),
-                                        value = if (customBrightness) customBrightnessValue.toFloat() else 0f,
-                                        valueRange = -75f..100f,
-                                        valueDisplay = "${if (customBrightness) customBrightnessValue else 0}%",
-                                        onValueChange = {
-                                            if (!customBrightness) {
-                                                readerPreferences.customBrightness().set(true)
-                                            }
-                                            readerPreferences.customBrightnessValue().set(it.toInt())
-                                        },
-                                    )
-                                }
                             }
                             2 -> {
                                 TranslationResetSection(
-                                    isPageShared = isPageShared,
-                                    onDeletePageData = onDeletePageData,
+                                    onResetChapterData = onResetChapterData,
                                 )
                             }
                         }

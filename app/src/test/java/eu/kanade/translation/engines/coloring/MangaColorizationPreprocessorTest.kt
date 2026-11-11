@@ -1,5 +1,8 @@
 package eu.kanade.translation.engines.coloring
 
+import android.graphics.Bitmap
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -112,6 +115,28 @@ class MangaColorizationPreprocessorTest {
         assertEquals(1f, packed[2 * 4 + 2])
         assertEquals(0f, packed[16]) // channel 1 is the zero-filled hint plane
         assertEquals(0f, packed[16 + 12])
+    }
+
+    @Test
+    fun `ffdnet gray plane resamples native denoise to work dimensions and normalizes`() {
+        val ffdnetEngine = mockk<FfdnetDenoiserEngine>()
+        val mockBitmap = mockk<Bitmap>()
+        every { mockBitmap.width } returns 4
+        every { mockBitmap.height } returns 4
+        val nativeDenoised = ByteArray(16) { 128.toByte() }
+        every { ffdnetEngine.denoise(mockBitmap) } returns nativeDenoised
+
+        val result = MangaColorizationPreprocessor.ffdnetGrayPlane(
+            source = mockBitmap,
+            workWidth = 2,
+            workHeight = 2,
+            ffdnetEngine = ffdnetEngine,
+        )
+
+        assertEquals(0.0f, result.score)
+        assertEquals(true, result.smoothingApplied)
+        assertEquals(4, result.plane.size)
+        assertEquals(128f / 255f, result.plane[0], 1e-4f)
     }
 
     private fun syntheticPage(): ByteArray = ScreentoneGateTest().syntheticPage()

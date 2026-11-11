@@ -30,7 +30,7 @@ if ($script:failed) { Write-Output 'VALIDATION_FAIL (apk hash mismatch — refus
 # 2. Packaging: NPU artifact + QNN libs pinned inside the APK; dex carries the shader fix
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $pinned = @{
-    'manga_colorize_npu_sm8650_w8a8.tflite' = 'd687f414868e11b47049ac0566b7087f767abcb2a7ca02d0edad01e1437d4ac9'
+    'manga_colorize_npu_sm8650_w8a8.tflite' = 'd60e18b2c64a11c25256969b24532747c06d9cad10327ec68281cd1ac0e94b83'
     'libQnnHtp.so' = '09e930b6af975bae23bcf6965ac2ce60f6b999aff37cb7eabe9b4d7c1bc3f264'
     'libQnnSystem.so' = 'b30bd9880dc48f6c5349185a7d45b326f8a064b10072e60094354fa23d9a2027'
     'libQnnHtpV75Stub.so' = '8be2bf0b0c6839d3e3bf9d8435e9b92d3fde0ccdea343d89960d75285ad28dab'
@@ -82,8 +82,8 @@ Step 'package-identity' (($null -ne $pkgInfo) -and ($pkgInfo -match 'versionCode
 
 # 6. NPU artifact cache pin on device (informational; engine re-hashes the real file every init)
 $cacheInfo = (& $adb -s $DeviceSerial shell "run-as $PackageId cat shared_prefs/mcv2_npu_model_cache.xml 2>/dev/null") | Out-String
-$cacheOk = $cacheInfo -match 'd3d26e5e1af43213a8b6d9a9cca23b30e1f432e5f2dbf02398ef31199a7ff1f4'
-Step 'npu-cache-pin' $cacheOk $(if ($cacheOk) { 'cached artifact sha256 = pinned d3d26e5e…' } else { 'cache not readable/present (engine re-extracts + re-hashes on first use; not fatal)' })
+$cacheOk = $cacheInfo -match 'd60e18b2c64a11c25256969b24532747c06d9cad10327ec68281cd1ac0e94b83'
+Step 'npu-cache-pin' $cacheOk $(if ($cacheOk) { 'cached artifact sha256 = pinned d60e18b2…' } else { 'cache not readable/present (engine re-extracts + re-hashes on first use; not fatal)' })
 
 # 7. Optional on-device synthetic alignment sweep
 if ($RunSweep) {

@@ -111,8 +111,9 @@ class ChapterTranslationStatusOffMainThreadTest {
             assertCallerStaysFree(mainExecutor, lookupStarted, releaseLookup) {
                 resolver.persistedChapterStatus(1L, "Chapter 1", null, "Manga", 77L)
             }
-            // Transient (null) outcomes are still not cached — same semantics as before.
-            cache.isEmpty() shouldBe true
+            // The slow (null) outcome is cached as a negative memo — a repeat
+            // open pays no SAF walk; clearDurableStatusCache drops it.
+            cache.size shouldBe 1
         } finally {
             releaseLookup.countDown()
             mainExecutor.shutdownNow()

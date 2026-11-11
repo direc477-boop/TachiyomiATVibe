@@ -1,6 +1,7 @@
 package eu.kanade.translation
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.annotation.VisibleForTesting
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -29,6 +30,7 @@ import eu.kanade.translation.model.TranslationRequestFailureKind
 import eu.kanade.translation.model.TranslationRequestState
 import eu.kanade.translation.persistence.ActiveChapterStoreRegistry
 import eu.kanade.translation.persistence.ChapterDataResetController
+import eu.kanade.translation.persistence.ChapterResetReceipt
 import eu.kanade.translation.persistence.ChapterTranslationAccessController
 import eu.kanade.translation.persistence.ChapterTranslationStore
 import eu.kanade.translation.persistence.CleanedImageLifecycleController
@@ -129,12 +131,21 @@ class TranslationManager private constructor(
 
     // Held here so deleteTranslation can evict stale reader page-stream closures.
     internal val streamRegistry: TranslationStreamRegistry = testConstruction?.streamRegistry ?: Injekt.get()
+
+    /**
+     * Bounded bitmap handoff from colorize commits to the visible reader page.
+     * Test constructions stay detached (their processor carries no handoff).
+     */
+    internal val coloredBitmapHandoff =
+        if (testConstruction == null) eu.kanade.translation.processing.ColoredBitmapHandoff() else null
+
     internal val downloadedPageStreams = DownloadPageStreamResolver(context, downloadProvider)
     internal val processor = testConstruction?.processor ?: TranslationProcessor(
         context = context,
         provider = provider,
         translationPreferences = translationPreferences,
         streamRegistry = streamRegistry,
+        coloredBitmapHandoff = coloredBitmapHandoff,
     )
 
     /**
@@ -183,6 +194,12 @@ class TranslationManager private constructor(
                     .drop(1)
                     .collect(::swapColorizationEngine)
             }
+            applicationScope.launch {
+                translationPreferences.preferFfdnetDenoising().changes()
+                    .distinctUntilChanged()
+                    .drop(1)
+                    .collect { swapColorizationEngine(currentColorizationModel()) }
+            }
         }
     }
 
@@ -190,7 +207,7 @@ class TranslationManager private constructor(
         translationPreferences.translationColorizationModel().get()
 
     private fun buildColorizationEngine(model: ColorizationModel): PageColorizationEngine = when (model) {
-        ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8 -> NpuMangaColorizationEngine(context)
+        ColorizationModel.MANGA_COLORIZATION_V2_NPU_W8A8 -> NpuMangaColorizationEngine(context, translationPreferences)
         ColorizationModel.MANGA_LIGHT_SAM_NPU_GPU -> MangaLightHybridColorizationEngine(context)
     }
 
@@ -661,11 +678,22 @@ class TranslationManager private constructor(
     // Chapter and page deletion/reset ordering is owned by this collaborator.
     private val chapterDataReset: ChapterDataResetController by lazy { createChapterDataReset() }
 
-    suspend fun deleteTranslation(chapter: Chapter, manga: Manga, source: Source) =
-        chapterDataReset.deleteTranslation(chapter, manga, source)
+    suspend fun deleteTranslation(chapter: Chapter, manga: Manga, source: Source): ChapterResetReceipt {
+        // Any handed-off bitmaps for this chapter's pages are stale evidence
+        // of deleted artifacts; recycle them before the purge runs.
+        coloredBitmapHandoff?.clear()
+        return chapterDataReset.deleteTranslation(chapter, manga, source)
+    }
 
-    suspend fun resetTranslationData(chapter: Chapter, manga: Manga, source: Source, pageKey: String) =
-        chapterDataReset.resetTranslationData(chapter, manga, source, pageKey)
+    /**
+     * Removes and returns the handed-off colored bitmap for [imageName]
+     * (ownership transfers to the caller, which recycles it), or null when no
+     * commit was handed off for that name.
+     */
+    fun pollColoredBitmapHandoff(imageName: String?): Bitmap? {
+        if (imageName == null) return null
+        return coloredBitmapHandoff?.poll(imageName)
+    }
 
     suspend fun resetOcrData(chapter: Chapter, manga: Manga, source: Source, pageKey: String) =
         chapterDataReset.resetOcrData(chapter, manga, source, pageKey)

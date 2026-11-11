@@ -23,7 +23,6 @@
     <string name="error_mlkit_language_unsupported">MLKit doesn't support this language</string>
     <string name="pref_show_translations">Show Translations</string>
     <string name="pref_show_translations_summary">Display rendered translated text on pages</string>
-    <string name="pref_reader_font">Reader Font</string>
     <string name="pref_group_setup">Translation Setup</string>
     <string name="pref_translate_from">Translate From</string>
     <string name="pref_ocr_model">OCR model</string>
@@ -68,6 +67,8 @@
     <string name="pref_colorization_model">Colorization model</string>
     <string name="pref_colorization_model_mcv2_npu_w8a8">Manga Colorization v2 (SM8650 NPU W8A8 — 576×832, cross-series calibrated, experimental; fails without fallback)</string>
     <string name="pref_colorization_model_manga_light_hybrid">Manga Light (SAM NPU + GPU, 512×512 experimental)</string>
+    <string name="pref_ffdnet_denoising">FFDNet pre-denoise (original recipe colors, slower)</string>
+    <string name="pref_ffdnet_denoising_summary">Runs FFDNet at native resolution before resizing for exact palette reproduction; disables fast screentone bilateral filtering</string>
     <string name="pref_upscaling_title">Upscaling</string>
     <string name="pref_upscaling_enabled">QuickSRNetLarge upscaling</string>
     <string name="pref_upscaling_enabled_summary">Experimental — ×4 upscaling of a single ≤128×128 region on NPU (SM8650)</string>
@@ -203,12 +204,13 @@
     <string name="reader_data_reset_confirm_title">Reset translation data?</string>
     <string name="reader_data_reset_confirm_message">%1$s will be regenerated the next time this page is translated. This cannot be undone.</string>
     <string name="reader_data_reset_keep_edits">Reset translation output (keep edits)</string>
-    <string name="reader_data_reset_page">Reset page</string>
     <string name="action_reset">Reset</string>
-    <string name="action_delete_page_data">Delete Page &amp; Data</string>
-    <string name="reader_delete_page_confirm_title">Delete Page &amp; Artifacts?</string>
-    <string name="reader_delete_page_confirm_message">The following items for this page will be deleted:\n• Downloaded page image\n• Translation &amp; OCR data\n• Cleaned (inpainted) image\n• Colored image\n\nThis cannot be undone.</string>
-    <string name="reader_delete_page_confirm_message_shared">The following items for this page will be deleted:\n• Translation &amp; OCR data\n• Cleaned (inpainted) image\n• Colored image\n\nNote: Original image is shared with split page and will be kept on disk.\n\nThis cannot be undone.</string>
+    <string name="action_reset_chapter_data">Reset Chapter Data</string>
+    <string name="reader_translation_reset_chapter_summary">Deletes all translation, OCR and colorization data for this chapter</string>
+    <string name="reader_delete_chapter_confirm_title">Reset chapter translation data?</string>
+    <string name="reader_delete_chapter_confirm_message">All derived data for this chapter will be deleted:\n• Translation store manifest and backups\n• Per-page snapshots and processing artifacts\n• Cleaned, colorized and rendered images\n• Cached reader display streams\n\nAny translation or colorization running for this chapter will be cancelled. Original pages and downloads are kept.\n\nThis cannot be undone.</string>
+    <string name="reader_chapter_reset_complete">Chapter data reset: %1$d files and %2$d folders removed</string>
+    <string name="reader_chapter_reset_failed">Chapter reset incomplete: some files could not be deleted</string>
     <string name="reader_tab_translation">Translation</string>
     <string name="reader_tab_display">Display</string>
     <string name="reader_tab_data">Data</string>
@@ -250,7 +252,6 @@
     <string name="reader_translation_ocr_mlkit_summary">Universal Latin/CJK</string>
     <string name="reader_translation_deepl_api_key">DeepL API key</string>
     <string name="reader_translation_engine_fumeto_summary">On-device Japanese→English model (CPU, page context)</string>
-    <string name="reader_translation_reset_summary">Purges cached artifacts for this page</string>
 
     <!-- Translation settings shared section headings -->
     <string name="translation_section_languages">Languages</string>

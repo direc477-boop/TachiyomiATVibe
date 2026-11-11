@@ -146,6 +146,14 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
     }
 
     /**
+     * TachiyomiAT: a destroyed pager holder never comes back, so any handed-off
+     * colored bitmap it still owns must be recycled here.
+     */
+    override fun destroyView(container: ViewGroup, position: Int, view: View) {
+        (view as? PagerPageHolder)?.releaseHandoffBitmap()
+    }
+
+    /**
      * Returns the current position of the given [view] on the adapter.
      */
     override fun getItemPosition(view: Any): Int {

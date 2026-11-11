@@ -50,6 +50,7 @@ class Mcv2ParityRunner(
         val warmupCount: Int,
         val repeatCount: Int,
         val gpuPrecision: String? = null,
+        val skipCpu: Boolean = false,
         val auxiliaryInputs: Map<String, File> = emptyMap(),
         val samModels: List<File> = emptyList(),
         val samInput: File? = null,
@@ -113,6 +114,7 @@ class Mcv2ParityRunner(
                     warmupCount = extras[args[ArgumentKey.WARMUP]!!]?.toIntOrNull()?.coerceIn(0, 20) ?: 3,
                     repeatCount = extras[args[ArgumentKey.REPEATS]!!]?.toIntOrNull()?.coerceIn(1, 100) ?: 10,
                     gpuPrecision = extras[args[ArgumentKey.GPU_PRECISION]!!]?.lowercase()?.ifEmpty { null },
+                    skipCpu = extras["skipCpu"] == "1",
                     auxiliaryInputs = extras["auxiliaryInputs"]?.split(',')?.associate { entry ->
                         val parts = entry.split('=', limit = 2)
                         require(parts.size == 2 && parts[0].isNotBlank()) { "Invalid auxiliary input: $entry" }
@@ -250,7 +252,12 @@ class Mcv2ParityRunner(
         } else {
             config
         }
-        val cpu = runArm(environment, runConfig, config.cpuFile, Accelerator.CPU, input, "cpu", watchdog)
+        val cpu = if (config.skipCpu) {
+            Log.i(LOG_TAG, "CPU_ARM_SKIPPED skipCpu=1")
+            null
+        } else {
+            runLitertArm(environment, runConfig, config.cpuFile, Accelerator.CPU, input, "cpu", watchdog)
+        }
         val accelerated = runLitertArm(environment, runConfig, config.acceleratedFile, config.accelerator, input, "acc", watchdog)
         val ort = config.ortFile?.let { runOrtArm(it, config, input, watchdog) }
 
@@ -309,8 +316,10 @@ class Mcv2ParityRunner(
             "ort".takeIf { config.ortFile != null && ort == null },
         )
         if (failedArms.isEmpty()) {
-            status("DONE — all arms executed and compared. Metrics in logcat (tag Mcv2GpuParity). " +
-                "This status shows no pass/fail judgment; thresholds are evaluated externally.")
+            status(
+                "DONE — all arms executed and compared. Metrics in logcat (tag Mcv2GpuParity). " +
+                    "This status shows no pass/fail judgment; thresholds are evaluated externally.",
+            )
         } else {
             status("FINISHED with failed arms: ${failedArms.joinToString(", ")}. See logcat (tag Mcv2GpuParity).")
         }
@@ -343,8 +352,12 @@ class Mcv2ParityRunner(
                     Log.i(LOG_TAG, "SAM_STAGE index=$index run_read_ms=${(System.nanoTime() - stageStart) / 1_000_000.0}")
                     if (level1 != null) {
                         val level0Nhwc = FloatArray(input.size)
-                        for (y in 0 until 64) for (x in 0 until 64) for (c in 0 until 256) {
-                            level0Nhwc[(y * 64 + x) * 256 + c] = input[(c * 64 + y) * 64 + x]
+                        for (y in 0 until 64) {
+                            for (x in 0 until 64) {
+                                for (c in 0 until 256) {
+                                    level0Nhwc[(y * 64 + x) * 256 + c] = input[(c * 64 + y) * 64 + x]
+                                }
+                            }
                         }
                         val result = mapOf("sam_level0" to level0Nhwc, "sam_level1" to level1.readFloat())
                         return result.mapValues { (name, values) ->
@@ -825,9 +838,24 @@ class Mcv2ParityRunner(
     }
 
     private enum class ArgumentKey {
-        MODEL, CPU_MODEL, ACCELERATED_MODEL, ORT_MODEL, REFERENCE, INPUT,
-        ACCELERATOR, INPUT_NAME, OUTPUT_NAME, ALL_OUTPUT_NAMES, SIGNATURE,
-        INPUT_DIMS, OUTPUT_DIMS, INPUT_FILL, DUMP, BENCHMARK, WARMUP, REPEATS,
+        MODEL,
+        CPU_MODEL,
+        ACCELERATED_MODEL,
+        ORT_MODEL,
+        REFERENCE,
+        INPUT,
+        ACCELERATOR,
+        INPUT_NAME,
+        OUTPUT_NAME,
+        ALL_OUTPUT_NAMES,
+        SIGNATURE,
+        INPUT_DIMS,
+        OUTPUT_DIMS,
+        INPUT_FILL,
+        DUMP,
+        BENCHMARK,
+        WARMUP,
+        REPEATS,
         GPU_PRECISION,
     }
 

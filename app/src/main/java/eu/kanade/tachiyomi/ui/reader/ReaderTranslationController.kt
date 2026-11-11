@@ -28,6 +28,7 @@ import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.model.TextRecognizerLanguage
 import eu.kanade.translation.model.Translation
 import eu.kanade.translation.model.displayImageName
+import eu.kanade.translation.model.isColorizeOnlyComplete
 import eu.kanade.translation.model.isTranslationDisplayReady
 import eu.kanade.translation.model.shouldShowTranslationOverlay
 import eu.kanade.translation.persistence.ChapterTranslationStore
@@ -175,16 +176,13 @@ internal class ReaderTranslationController(
             if (shouldAttach) {
                 keepPageKeys += resolvePageKey(page)
                 val hadStream = page.translatedStream != null
+                val hadShow = page.showTranslatedImage
                 attachTranslatedStreamIfWarm(page, manga, chapter, source)
-                if (dispatchRefresh && hadStream != (page.translatedStream != null)) {
+                if (dispatchRefresh && (hadStream != (page.translatedStream != null) || hadShow != page.showTranslatedImage)) {
                     changedPages += page
                 }
             } else if (shouldEvict) {
-                if (page.translatedStream != null || page.showTranslatedImage) {
-                    changedPages += page
-                }
                 page.translatedStream = null
-                page.showTranslatedImage = false
             } else {
                 // Hysteresis deadband: retain already-attached streams without thrashing
                 if (page.translatedStream != null) {
@@ -221,15 +219,7 @@ internal class ReaderTranslationController(
         val pageKey = resolvePageKey(page)
         val batchActive = chapter.chapter.id?.let { translationManager.isChapterBatchActive(it, includePaused = false) } == true
         if (!batchActive && !isInTranslationWarmWindow(page)) {
-            val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
             page.translatedStream = null
-            page.showTranslatedImage = false
-            NativeVisionTelemetry.logDisplayAttach(
-                pageKey = pageKey,
-                streamAttached = false,
-                showTranslatedImage = false,
-                displayImageName = page.translation?.displayImageName(colorizationEnabled) != null,
-            )
             return
         }
         bindTranslatedStream(page, manga, chapter, source, pageKey)
@@ -263,6 +253,10 @@ internal class ReaderTranslationController(
     ) {
         val store = currentTranslationStore
         if (store != null) {
+            val storeDisplay = store.resolveDisplayPage(pageKey)
+            if (storeDisplay != null) {
+                page.translation = storeDisplay
+            }
             val translation = page.translation
             if (translation != null && translation.blocks.isEmpty()) {
                 val hydrated = withContext(Dispatchers.IO) { store.getOrLoadPageSnapshot(pageKey) }
@@ -272,11 +266,8 @@ internal class ReaderTranslationController(
             }
         }
         val translation = page.translation
-        // The stream must carry the same file the holders project: with
-        // colorization on and a READY colored image, attach its bytes.
-        val displayImage = translation?.displayImageName(
-            translationPreferences.translationColorizationEnabled().get(),
-        )
+        val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
+        val displayImage = translation?.displayImageName(colorizationEnabled)
         page.translatedStream = when {
             displayImage != null -> translationManager.getCleanedImageStream(
                 manga.title,
@@ -290,8 +281,16 @@ internal class ReaderTranslationController(
             )
             else -> null
         }
-        if (page.translatedStream == null) {
-            if (translation == null || !translation.shouldShowTranslationOverlay) {
+        if (!page.translationToggled) {
+            val translationEnabled = translationPreferences.translationEnabled().get()
+            val isDisplayReady = translation?.let {
+                it.isColorizeOnlyComplete || it.isTranslationDisplayReady
+            } == true
+            if (page.translatedStream != null || (isDisplayReady && translation?.shouldShowTranslationOverlay == true)) {
+                if (translationEnabled) {
+                    page.showTranslatedImage = true
+                }
+            } else if (translation == null || !translation.shouldShowTranslationOverlay) {
                 page.showTranslatedImage = false
             }
         }
@@ -331,9 +330,14 @@ internal class ReaderTranslationController(
      */
     internal suspend fun attachTranslatedStreamForPage(page: ReaderPage) {
         val manga = manga ?: return
-        val chapter = getCurrentChapter() ?: return
+        val chapter = page.chapter
         val source = sourceManager.get(manga.source) as? HttpSource ?: return
-        attachTranslatedStreamIfWarm(page, manga, chapter, source)
+        val pageKey = resolvePageKey(page)
+        bindTranslatedStream(page, manga, chapter, source, pageKey)
+        val translation = page.translation
+        if (translation?.isTranslationDisplayReady == true || page.translatedStream != null || page.showTranslatedImage) {
+            recordArrivalWait(page.index, pageKey)
+        }
     }
 
     internal fun isInTranslationWarmWindow(page: ReaderPage): Boolean {
@@ -671,10 +675,6 @@ internal class ReaderTranslationController(
 
     internal suspend fun cancelTranslationForChapter(chapter: ReaderChapter) = actions.cancelTranslationForChapter(chapter)
     internal fun deleteCurrentChapterTranslation() = actions.deleteCurrentChapterTranslation()
-    internal fun resetTranslationData() = actions.resetTranslationData()
-    internal fun resetOcrData() = actions.resetOcrData()
-    internal fun deleteCurrentPageData() = actions.deleteCurrentPageData()
-    internal fun isCurrentPageShared(): Boolean = actions.isCurrentPageShared()
     internal fun translateSinglePage(page: ReaderPage, force: Boolean? = null) = actions.translateSinglePage(page, force)
     internal fun confirmPageRetranslation(page: ReaderPage) = actions.confirmPageRetranslation(page)
 
@@ -975,6 +975,39 @@ internal class ReaderTranslationController(
         if (MemoryPressurePolicy.classify(level) == MemoryPressureClass.Critical) {
             liveTranslationState = Translation.State.NOT_TRANSLATED
             recomputeTranslationState()
+        }
+    }
+
+    internal suspend fun refreshWorkingSetOnBatchComplete(chapter: ReaderChapter, currentIndex: Int) {
+        val manga = manga ?: return
+        val source = sourceManager.get(manga.source) as? HttpSource ?: return
+        val pages = chapter.pages?.filterIsInstance<ReaderPage>() ?: return
+        if (pages.isEmpty()) return
+
+        val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
+        val translationEnabled = translationPreferences.translationEnabled().get()
+        val changedPages = linkedSetOf<ReaderPage>()
+        val readingMode = ReadingMode.fromPreference(getMangaReadingMode())
+        val attachRadius = ReaderPageWarmWindow.attachRadiusFor(readingMode)
+
+        for ((listIndex, page) in pages.withIndex()) {
+            val isWarm = ReaderPageWarmWindow.contains(listIndex, currentIndex, pages.lastIndex, radius = attachRadius)
+            if (isWarm) {
+                bindTranslatedStream(page, manga, chapter, source, resolvePageKey(page))
+                val isDisplayReady = page.translation?.let {
+                    it.isColorizeOnlyComplete || it.isTranslationDisplayReady || it.displayImageName(colorizationEnabled) != null
+                } == true
+                if (isDisplayReady && translationEnabled && !page.translationToggled) {
+                    page.showTranslatedImage = true
+                }
+                if (page.showTranslatedImage || isDisplayReady) {
+                    changedPages += page
+                }
+            }
+        }
+        if (changedPages.isNotEmpty()) {
+            eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(changedPages))
+            mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
         }
     }
 

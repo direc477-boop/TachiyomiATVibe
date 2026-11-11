@@ -30,12 +30,15 @@ class MangaLightHybridDeviceTest {
                 assertTrue(!output.isRecycled)
                 val rendered = IntArray(512 * 512)
                 output.getPixels(rendered, 0, 512, 0, 0, 512, 512)
-                assertTrue("Synthetic result has no chroma", rendered.any { pixel ->
-                    val red = (pixel shr 16) and 0xff
-                    val green = (pixel shr 8) and 0xff
-                    val blue = pixel and 0xff
-                    kotlin.math.abs(red - green) > 2 || kotlin.math.abs(blue - green) > 2
-                })
+                assertTrue(
+                    "Synthetic result has no chroma",
+                    rendered.any { pixel ->
+                        val red = (pixel shr 16) and 0xff
+                        val green = (pixel shr 8) and 0xff
+                        val blue = pixel and 0xff
+                        kotlin.math.abs(red - green) > 2 || kotlin.math.abs(blue - green) > 2
+                    },
+                )
             } finally {
                 output.recycle()
             }

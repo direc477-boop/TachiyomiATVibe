@@ -13,6 +13,7 @@ import eu.kanade.translation.persistence.DurableChapterState
 import eu.kanade.translation.persistence.TranslationFileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import tachiyomi.domain.source.service.SourceManager
 import java.util.concurrent.ConcurrentHashMap
 
@@ -40,7 +41,7 @@ internal data class DurableDocumentKey(
     val sourceId: Long,
 )
 
-internal data class DurableStatus(val state: Translation.State)
+internal data class DurableStatus(val state: Translation.State?)
 
 internal data class TranslationDocument(
     val parent: UniFile,
@@ -79,17 +80,20 @@ internal class DurableChapterStatusResolver(
     private val durableDocumentCache = ConcurrentHashMap<DurableDocumentKey, TranslationDocument>()
 
     /**
-     * Invalidates every cached durable status and memoized document. This is
-     * protocol, not detail: opens, journal recovery/seeding, and deletes change durable truth,
-     * and a missed clear can resurrect stale TRANSLATED states. All status and document
-     * invalidations route through this method.
+     * Invalidates every cached durable status (positive and negative) and
+     * memoized document, plus the provider's per-manga directory memos. This is
+     * protocol, not detail: opens, journal recovery/seeding, deletes, reader
+     * store release, and batch completion change durable truth, and a missed
+     * clear can resurrect stale TRANSLATED or stale ABSENT states. All status
+     * and document invalidations route through this method.
      */
     fun clearDurableStatusCache() {
         durableStatusCache.clear()
         durableDocumentCache.clear()
+        provider.invalidateDirectoryMemo()
     }
 
-    // Durable misses may perform O(pages) SAF/UniFile reads. Keep the cache check synchronous,
+    // Durable misses may perform O(manifest) SAF/UniFile reads. Keep the cache check synchronous,
     // but suspend and hop to IO for a miss so reader/UI callers never park their thread.
     suspend fun persistedChapterStatus(
         chapterId: Long?,
@@ -109,15 +113,16 @@ internal class DurableChapterStatusResolver(
                 sourceId,
             )
         }
-        // A null result includes an absent artifact, an unsupported future
-        // schema, and corrupt manifest evidence. None of those may become a
-        // same-manager cache hit that hides a later retry; an environment
-        // failure propagates instead of resolving at all.
-        state?.let { durableStatusCache[key] = DurableStatus(it) }
+        // Negative results (absent artifact, unsupported schema, corrupt
+        // evidence) are cached too: the per-screen badge pass used to re-walk
+        // SAF for every downloaded-but-untranslated chapter. Every durable
+        // mutation routes through [clearDurableStatusCache], which drops the
+        // negative before the state can change.
+        durableStatusCache[key] = DurableStatus(state)
         return state
     }
 
-    private suspend fun resolveDurableChapterStatus(
+    private fun resolveDurableChapterStatus(
         chapterId: Long?,
         chapterName: String,
         chapterScanlator: String?,
@@ -127,15 +132,26 @@ internal class DurableChapterStatusResolver(
         val source = sourceManager.get(sourceId) ?: return null
         val document = findTranslationDocument(chapterName, chapterScanlator, mangaTitle, source)
             ?: return null
-        val read = ChapterStoreOpener.readDurableChapter(
-            document.parent,
-            document.fileName,
-        )
+        // Header-only probe: no page snapshot reads on the status path. A
+        // corrupt manifest counts as absent evidence (bytes preserved), as the
+        // classified read did; environment failures propagate uncached.
+        val probe = try {
+            ChapterStoreOpener.probeArtifactManifest(
+                document.parent,
+                document.fileName,
+            )
+        } catch (failure: SerializationException) {
+            return null
+        }
+        if (!probe.exists) return null
+        val manifest = probe.manifest ?: return null
         // Unsupported future schemas count as ABSENT for planning (bytes are
-        // preserved untouched); corrupt evidence resolves null rather than
-        // masquerading as a cleanly new chapter.
-        val state = (read as? DurableChapterRead.Supported)?.state ?: return null
-        return ChapterStatusProjection.artifactStatus(state.statusProjectionData())
+        // preserved untouched), mirroring readDurableChapter's gate.
+        if (manifest.schemaVersion > ChapterArtifactManifest.SCHEMA_VERSION) return null
+        if (manifest.schemaVersion < ChapterArtifactManifest.MIN_SUPPORTED_SCHEMA_VERSION) return null
+        return ChapterStatusProjection.artifactStatus(
+            ChapterStoreOpener.probeStatusProjectionData(manifest),
+        )
     }
 
     fun findTranslationDocument(

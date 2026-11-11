@@ -2,11 +2,9 @@ package eu.kanade.tachiyomi.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.database.models.toDomainChapter
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
-import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.util.system.toast
@@ -26,6 +24,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -42,7 +41,6 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
     private val viewModelScope get() = owner.viewModelScope
     private val sourceManager get() = owner.sourceManager
     private val downloadManager get() = owner.downloadManager
-    private val downloadProvider get() = owner.downloadProvider
     private val translationManager get() = owner.translationManager
     private val readerCoordinator get() = controller.readerCoordinator
     private val streamRegistry get() = owner.streamRegistry
@@ -157,7 +155,7 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
         }
 
         viewModelScope.launchIO {
-            translationManager.deleteTranslation(chapter.toDomainChapter()!!, manga, source)
+            val receipt = translationManager.deleteTranslation(chapter.toDomainChapter()!!, manga, source)
             // Re-subscribe to the (now fresh) store AFTER teardown. deleteTranslation
             // has already evicted the old store, so openOrCreate... resolves a new
             // lazy store that the next translate also resolves — reader and
@@ -167,115 +165,20 @@ internal class ReaderTranslationActions(private val controller: ReaderTranslatio
             liveTranslationState = Translation.State.NOT_TRANSLATED
             mutableState.update { it.copy(translationState = Translation.State.NOT_TRANSLATED) }
             recomputeTranslationState()
-        }
-    }
-
-    internal fun resetTranslationData() {
-        val manga = manga ?: return
-        val page = currentReaderPage() ?: return
-        val chapter = page.chapter.chapter
-        val source = sourceManager.get(manga.source) as? HttpSource ?: return
-
-        page.translatedStream = null
-        page.translation = null
-        page.showTranslatedImage = false
-        page.translationToggled = false
-
-        val readerPages = setOf(page)
-        eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(readerPages))
-        mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
-
-        viewModelScope.launchIO {
-            val pageKey = resolvePageKey(page)
-            translationManager.resetTranslationData(chapter.toDomainChapter()!!, manga, source, pageKey)
-            recomputeTranslationState()
-        }
-    }
-
-    internal fun resetOcrData() {
-        val manga = manga ?: return
-        val page = currentReaderPage() ?: return
-        val chapter = page.chapter.chapter
-        val source = sourceManager.get(manga.source) as? HttpSource ?: return
-
-        page.translatedStream = null
-        page.translation = null
-        page.showTranslatedImage = false
-        page.translationToggled = false
-
-        val readerPages = setOf(page)
-        eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(readerPages))
-        mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
-
-        viewModelScope.launchIO {
-            val pageKey = resolvePageKey(page)
-            translationManager.resetOcrData(chapter.toDomainChapter()!!, manga, source, pageKey)
-            recomputeTranslationState()
-        }
-    }
-
-    internal fun isCurrentPageShared(): Boolean {
-        val page = currentReaderPage() ?: return false
-        val pages = getCurrentChapter()?.pages.orEmpty()
-        return isPageShared(page, pages)
-    }
-
-    private fun isPageShared(page: ReaderPage, pages: List<ReaderPage>): Boolean {
-        return page is InsertPage || pages.any { it is InsertPage && it.parent === page }
-    }
-
-    internal fun deleteCurrentPageData() {
-        val manga = manga ?: return
-        val page = currentReaderPage() ?: return
-        val chapter = page.chapter.chapter
-        val source = sourceManager.get(manga.source) as? HttpSource ?: return
-        val pages = getCurrentChapter()?.pages.orEmpty()
-        val isShared = isPageShared(page, pages)
-
-        val affectedPages = mutableSetOf(page)
-        pages.forEach { other ->
-            if ((other is InsertPage && other.parent === page) || (page is InsertPage && other === page.parent)) {
-                other.translatedStream = null
-                other.translation = null
-                other.showTranslatedImage = false
-                other.translationToggled = false
-                affectedPages.add(other)
-            }
-        }
-
-        page.translatedStream = null
-        page.translation = null
-        page.showTranslatedImage = false
-        page.translationToggled = false
-
-        eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(affectedPages))
-        mutableState.update { it.copy(translationRefreshToken = System.currentTimeMillis()) }
-
-        viewModelScope.launchIO {
-            val pageKey = resolvePageKey(page)
-            translationManager.resetOcrData(chapter.toDomainChapter()!!, manga, source, pageKey)
-
-            if (!isShared) {
-                try {
-                    val chapterDir = downloadProvider.findChapterDir(
-                        chapter.name,
-                        chapter.scanlator,
-                        manga.title,
-                        source,
+            withUIContext {
+                val app = Injekt.get<Application>()
+                if (receipt.completed) {
+                    app.toast(
+                        app.stringResource(
+                            ATMR.strings.reader_chapter_reset_complete,
+                            receipt.removedFiles,
+                            receipt.removedDirs,
+                        ),
                     )
-                    if (chapterDir != null && chapterDir.isDirectory) {
-                        page.sourceFileName?.let { fileName ->
-                            chapterDir.findFile(fileName)?.delete()
-                        }
-                    } else if (page.uri != null) {
-                        UniFile.fromUri(Injekt.get<Application>(), page.uri)?.delete()
-                    }
-                } catch (e: Exception) {
-                    logcat(LogPriority.WARN, e) { "Failed to delete downloaded page file for $pageKey" }
+                } else {
+                    app.toast(ATMR.strings.reader_chapter_reset_failed)
                 }
             }
-
-            recomputeTranslationState()
         }
     }
 

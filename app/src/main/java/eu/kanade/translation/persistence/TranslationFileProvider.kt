@@ -11,11 +11,96 @@ import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.Optional
+import java.util.concurrent.ConcurrentHashMap
 
 class TranslationFileProvider(
     private val context: Context,
     private val storageManager: StorageManager = Injekt.get(),
 ) {
+
+    // Per-manga SAF memos: one walk per manga per invalidation window instead
+    // of per-chapter findFile round-trips (60-210ms each over Binder). All
+    // entries — including negatives — drop in invalidateDirectoryMemo.
+    private data class MangaDirMemoKey(val sourceId: Long, val mangaTitle: String)
+
+    private data class CompanionDirMemoKey(
+        val sourceId: Long,
+        val mangaTitle: String,
+        val companionDirName: String,
+    )
+
+    private val mangaDirMemo = ConcurrentHashMap<MangaDirMemoKey, Optional<UniFile>>()
+    private val mangaDirListingMemo = ConcurrentHashMap<MangaDirMemoKey, Set<String>>()
+    private val companionDirMemo = ConcurrentHashMap<CompanionDirMemoKey, Optional<UniFile>>()
+
+    /**
+     * Single invalidation protocol for every directory memo. Durable mutations
+     * (store creation through [getMangaDir], resets, deletions, batch closure)
+     * route here — usually via the resolver's clearDurableStatusCache — so a
+     * memo never outlives the durable truth it mirrors.
+     */
+    fun invalidateDirectoryMemo() {
+        mangaDirMemo.clear()
+        mangaDirListingMemo.clear()
+        companionDirMemo.clear()
+    }
+
+    /** Read-through memo over [findMangaDir]; negatives included until invalidation. */
+    internal fun findMangaDirMemoized(mangaTitle: String, source: Source): UniFile? {
+        val key = MangaDirMemoKey(source.id, mangaTitle)
+        mangaDirMemo[key]?.let { return it.orElse(null) }
+        val dir = findMangaDir(mangaTitle, source)
+        mangaDirMemo[key] = Optional.ofNullable(dir)
+        return dir
+    }
+
+    /**
+     * File-name index of the manga translation directory, listed once per
+     * invalidation window. A failed SAF walk is served uncached so the next
+     * call retries instead of pinning an empty index.
+     */
+    internal fun mangaDirFileNames(mangaTitle: String, source: Source): Set<String> {
+        val key = MangaDirMemoKey(source.id, mangaTitle)
+        mangaDirListingMemo[key]?.let { return it }
+        val dir = findMangaDirMemoized(mangaTitle, source)
+        val children = dir?.listFiles()
+        if (dir != null && children == null) return emptySet()
+        val listing = children?.mapNotNull { it.name }?.toSet() ?: emptySet()
+        mangaDirListingMemo[key] = listing
+        return listing
+    }
+
+    /** Read-through memo over [findCompanionImageDir]; negatives included until invalidation. */
+    internal fun findCompanionImageDirMemoized(
+        mangaTitle: String,
+        source: Source,
+        chapterName: String,
+        chapterScanlator: String?,
+    ): UniFile? {
+        val dirName = companionImageDirName(chapterName, chapterScanlator)
+        val key = CompanionDirMemoKey(source.id, mangaTitle, dirName)
+        companionDirMemo[key]?.let { return it.orElse(null) }
+        val dir = findCompanionImageDir(mangaTitle, source, chapterName, chapterScanlator)
+        companionDirMemo[key] = Optional.ofNullable(dir)
+        return dir
+    }
+
+    /** Page file resolved with one findFile against the memoized companion directory. */
+    internal fun findPageCleanedImageMemoized(
+        mangaTitle: String,
+        source: Source,
+        chapterName: String,
+        chapterScanlator: String?,
+        pageImageName: String,
+    ): UniFile? {
+        val dir = findCompanionImageDirMemoized(mangaTitle, source, chapterName, chapterScanlator) ?: return null
+        return dir.findFile(pageImageName)
+    }
+
+    private fun companionImageDirName(chapterName: String, chapterScanlator: String?): String {
+        return getTranslationFileName(chapterName, chapterScanlator).removeSuffix(".json") + "_images"
+    }
 
     internal sealed interface MangaDirectoryLookup {
         data class Found(val directory: UniFile) : MangaDirectoryLookup
@@ -43,6 +128,7 @@ class TranslationFileProvider(
             return sourceDir
                 .createDirectory(getMangaDirName(mangaTitle))!!
                 .also { DiskUtil.createNoMediaFile(it, context) }
+                .also { invalidateDirectoryMemo() }
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Invalid translation directory" }
             throw Exception(
@@ -146,6 +232,7 @@ class TranslationFileProvider(
         val companionDirName = translationFileName.removeSuffix(".json") + "_images"
         return mangaDir.createDirectory(companionDirName)?.also {
             DiskUtil.createNoMediaFile(it, context)
+            invalidateDirectoryMemo()
         }
     }
 

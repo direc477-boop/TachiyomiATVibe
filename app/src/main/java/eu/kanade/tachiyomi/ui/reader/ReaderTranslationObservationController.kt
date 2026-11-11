@@ -113,11 +113,17 @@ internal class ReaderTranslationObservationController(private val controller: Re
             .filterNotNull()
             .onEach { translation ->
                 if (translation.chapter.id == chapterId) {
-                    // Merge the batch-queue status with live (per-page/auto)
-                    // status instead of overwriting it. Overwriting here would
-                    // erase a TRANSLATING signal coming from per-page work.
+                    val wasActive = batchTranslationState == Translation.State.TRANSLATING
                     batchTranslationState = translation.status
                     recomputeTranslationState()
+                    val isComplete = translation.status == Translation.State.TRANSLATED ||
+                        (wasActive && translation.status != Translation.State.TRANSLATING)
+                    if (isComplete) {
+                        state.value.viewerChapters?.currChapter?.let { current ->
+                            val targetIndex = if (chapterPageIndex >= 0) chapterPageIndex else current.requestedPage
+                            controller.refreshWorkingSetOnBatchComplete(current, targetIndex)
+                        }
+                    }
                 }
             }
             .launchIn(viewModelScope)
@@ -234,7 +240,16 @@ internal class ReaderTranslationObservationController(private val controller: Re
         // needs to be visible in the reader and survive an enter/exit cycle.
         translationBatchProgressJob = viewModelScope.launchIO {
             translationManager.observeBatchProgress(chapterId).collect { progress ->
+                val wasActive = state.value.translationBatchProgress?.state == Translation.State.TRANSLATING
                 mutableState.update { it.copy(translationBatchProgress = progress) }
+                val isComplete = progress.state == Translation.State.TRANSLATED ||
+                    (wasActive && progress.state != Translation.State.TRANSLATING)
+                if (isComplete) {
+                    state.value.viewerChapters?.currChapter?.let { current ->
+                        val targetIndex = if (chapterPageIndex >= 0) chapterPageIndex else current.requestedPage
+                        controller.refreshWorkingSetOnBatchComplete(current, targetIndex)
+                    }
+                }
             }
         }
         val source = sourceManager.get(manga.source) as? HttpSource ?: return
@@ -344,7 +359,7 @@ internal class ReaderTranslationObservationController(private val controller: Re
                 }
                 state.value.viewerChapters?.currChapter?.let { current ->
                     val targetIndex = if (chapterPageIndex >= 0) chapterPageIndex else current.requestedPage
-                    updateTranslationWorkingSet(current, targetIndex, dispatchRefresh = false)
+                    updateTranslationWorkingSet(current, targetIndex, dispatchRefresh = true)
                 }
                 // Derive the live state from what we just observed, then merge
                 // with the batch state. TRANSLATING wins; then ERROR; then
@@ -488,22 +503,24 @@ internal class ReaderTranslationObservationController(private val controller: Re
                     return@onEach
                 }
                 val colorizationEnabled = translationPreferences.translationColorizationEnabled().get()
-                val resolvedDisplayImage = updated.displayImageName(colorizationEnabled)
-                val tier2Finished = resolvedDisplayImage != null && page.translatedStream == null
-                val wantsToShowOverlay = (updated.toPageDisplayProjection().displayReady || resolvedDisplayImage != null) &&
-                    !page.showTranslatedImage &&
-                    !page.translationToggled
+                val prevDisplayImage = page.translation?.displayImageName(colorizationEnabled)
+                val newDisplayImage = updated.displayImageName(colorizationEnabled)
+                val wasDisplayReady = page.translation?.let { it.isColorizeOnlyComplete || it.isTranslationDisplayReady } == true
+                val isDisplayReady = updated.isColorizeOnlyComplete || updated.isTranslationDisplayReady
                 page.translation = updated
-                attachTranslatedStreamIfWarm(page, manga, page.chapter, source)
+                controller.attachTranslatedStreamForPage(page)
                 if (translationPreferences.translationEnabled().get()) {
-                    if (tier2Finished || wantsToShowOverlay) {
+                    val displayChanged = newDisplayImage != prevDisplayImage || (isDisplayReady && !wasDisplayReady)
+                    if (isDisplayReady && !page.translationToggled) {
                         page.showTranslatedImage = true
+                    }
+                    if (displayChanged || isDisplayReady || page.showTranslatedImage) {
                         eventChannel.trySend(ReaderViewModel.Event.RefreshTranslationPages(setOf(page)))
                         NativeVisionTelemetry.logDisplayAttach(
                             pageKey = pageKey,
                             streamAttached = page.translatedStream != null,
                             showTranslatedImage = page.showTranslatedImage,
-                            displayImageName = page.translation?.displayImageName(colorizationEnabled) != null,
+                            displayImageName = newDisplayImage != null,
                         )
                     }
                     if (updated.isTranslationDisplayReady) {

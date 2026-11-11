@@ -11,6 +11,7 @@ import tachiyomi.core.common.util.system.logcat
 internal object MangaColorizationPreprocessor {
 
     const val STAMP_SUFFIX = "+BILATERAL_SMOOTH"
+    const val STAMP_FFDNET_SUFFIX = "+FFDNET_SMOOTH"
 
     class GrayPlane(val plane: FloatArray, val score: Float, val smoothingApplied: Boolean)
 
@@ -20,6 +21,21 @@ internal object MangaColorizationPreprocessor {
         val pixels = IntArray(source.width * source.height)
         source.getPixels(pixels, 0, source.width, 0, 0, source.width, source.height)
         return planeFromGray(grayLFromArgb(pixels), source.width, source.height, workWidth, workHeight)
+    }
+
+    /** Native-resolution FFDNet denoising before area-resampling into MCV2 work dimensions. */
+    fun ffdnetGrayPlane(
+        source: Bitmap,
+        workWidth: Int,
+        workHeight: Int,
+        ffdnetEngine: FfdnetDenoiserEngine,
+    ): GrayPlane {
+        require(workWidth > 0 && workHeight > 0) { "invalid work dimensions" }
+        val denoisedGray = ffdnetEngine.denoise(source)
+        val work = AreaResampler.resample(denoisedGray, source.width, source.height, workWidth, workHeight)
+        val plane = FloatArray(work.size)
+        for (i in work.indices) plane[i] = (work[i].toInt() and 0xFF) / 255f
+        return GrayPlane(plane, score = 0f, smoothingApplied = true)
     }
 
     /** Pure composition over an unsigned uint8 gray plane (JVM-testable numeric twin target). */

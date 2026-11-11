@@ -9,8 +9,8 @@ import eu.kanade.translation.model.PageStage
 import eu.kanade.translation.model.StageStatus
 import eu.kanade.translation.persistence.ChapterTranslationStore
 import eu.kanade.translation.persistence.LeaseAcquisition
-import eu.kanade.translation.persistence.PageWriteOrigin
 import eu.kanade.translation.persistence.PageStageLeaseTable
+import eu.kanade.translation.persistence.PageWriteOrigin
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -24,8 +24,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.io.TempDir
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.domain.translation.AiEngine
 import tachiyomi.domain.translation.StandardEngine
@@ -82,7 +82,6 @@ class TranslationProcessorColorizeOriginalPageTest {
     private fun stringPref(): Preference<String> = mockk {
         every { get() } returns "test"
     }
-
 
     private fun newStore(): ChapterTranslationStore = ChapterTranslationStore.lazy(
         artifactParent = FakeUniFile(parent = null, backing = backing),

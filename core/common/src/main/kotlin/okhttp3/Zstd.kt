@@ -12,4 +12,3 @@ object Zstd : CompressionInterceptor.DecompressionAlgorithm {
         return ZstdInputStream(source.inputStream()).source()
     }
 }
-

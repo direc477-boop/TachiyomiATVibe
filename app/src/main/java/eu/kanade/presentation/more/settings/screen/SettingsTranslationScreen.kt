@@ -23,12 +23,10 @@ import eu.kanade.translation.engines.upscaling.UpscalingModelCatalog
 import eu.kanade.translation.engines.vision.ocr.OcrModelCatalog
 import eu.kanade.translation.model.TextRecognizerLanguage
 import eu.kanade.translation.model.TextTranslatorLanguage
-import eu.kanade.translation.presentation.TranslationFont
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
 import tachiyomi.domain.translation.AiEngine
-import tachiyomi.domain.translation.ColorizationModel
 import tachiyomi.domain.translation.GeminiThinkingMode
 import tachiyomi.domain.translation.NeuralInpaintModel
 import tachiyomi.domain.translation.StandardEngine
@@ -48,18 +46,12 @@ object SettingsTranslationScreen : SearchableSettings {
 
     @Composable
     override fun getPreferences(): List<Preference> {
-        val entries = TranslationFont.entries
         val translationPreferences = remember { Injekt.get<TranslationPreferences>() }
         return listOf(
             Preference.PreferenceItem.SwitchPreference(
                 pref = translationPreferences.translationConfirmPretranslate(),
                 title = stringResource(ATMR.strings.pref_confirm_pretranslate),
                 subtitle = stringResource(ATMR.strings.pref_confirm_pretranslate_summary),
-            ),
-            Preference.PreferenceItem.ListPreference(
-                pref = translationPreferences.translationFont(),
-                title = stringResource(ATMR.strings.pref_reader_font),
-                entries = entries.withIndex().associate { it.index to it.value.label }.toImmutableMap(),
             ),
             getTranslationLangGroup(translationPreferences),
             getInpaintingModeGroup(translationPreferences),
@@ -93,6 +85,12 @@ object SettingsTranslationScreen : SearchableSettings {
                     pref = translationPreferences.translationColorizationModel(),
                     title = stringResource(ATMR.strings.pref_colorization_model),
                     entries = models.toImmutableMap(),
+                    enabled = colorizationEnabled,
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = translationPreferences.preferFfdnetDenoising(),
+                    title = stringResource(ATMR.strings.pref_ffdnet_denoising),
+                    subtitle = stringResource(ATMR.strings.pref_ffdnet_denoising_summary),
                     enabled = colorizationEnabled,
                 ),
             ),
@@ -263,7 +261,7 @@ object SettingsTranslationScreen : SearchableSettings {
                 },
                 Preference.PreferenceItem.ListPreference(
                     pref = translationPreferences.translationReadingOrder(),
-                    title = "Reading Direction (Panel Sorting)",
+                    title = "Panel Sorting (Translation Order)",
                     entries = mapOf(
                         TranslationReadingOrder.AUTO to "Auto (Based on language)",
                         TranslationReadingOrder.RTL_MANGA to "Right-to-Left (Manga)",

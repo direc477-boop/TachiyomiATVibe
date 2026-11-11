@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.annotation.IntRange
 import androidx.compose.runtime.Immutable
@@ -627,6 +628,9 @@ class ReaderViewModel @JvmOverloads constructor(
         }
     }
 
+    /** Hands a committed colored bitmap to the calling holder; ownership transfers to the caller. */
+    fun pollColoredBitmapHandoff(imageName: String?): Bitmap? = translationManager.pollColoredBitmapHandoff(imageName)
+
     /**
      * TachiyomiAT: per-page original/translated compare toggle state for the
      * current page. Derived from [state] (current page index + translation
@@ -888,18 +892,6 @@ class ReaderViewModel @JvmOverloads constructor(
 
     fun deleteCurrentChapterTranslation() =
         translationController.deleteCurrentChapterTranslation()
-
-    fun resetTranslationData() =
-        translationController.resetTranslationData()
-
-    fun resetOcrData() =
-        translationController.resetOcrData()
-
-    fun deleteCurrentPageData() =
-        translationController.deleteCurrentPageData()
-
-    fun isCurrentPageShared(): Boolean =
-        translationController.isCurrentPageShared()
 
     fun translateSinglePage(page: ReaderPage, force: Boolean? = null) {
         // Manual UI taps pass force == null; programmatic re-dispatch (which

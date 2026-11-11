@@ -107,6 +107,23 @@ class NpuMangaColorizationEngineTest {
     }
 
     @Test
+    fun `stamp suffix reflects ffdnet toggle state dynamically`() {
+        var ffdnetEnabled = false
+        val engine = NpuMangaColorizationEngine(
+            FakeDeps(artifactResult = { artifact() }).toDependencies(),
+            preferFfdnetDenoising = { ffdnetEnabled },
+        )
+        engine.isAvailable() shouldBe true
+        engine.currentStamp() shouldContain MangaColorizationPreprocessor.STAMP_SUFFIX
+
+        ffdnetEnabled = true
+        engine.currentStamp() shouldContain MangaColorizationPreprocessor.STAMP_FFDNET_SUFFIX
+
+        ffdnetEnabled = false
+        engine.currentStamp() shouldContain MangaColorizationPreprocessor.STAMP_SUFFIX
+    }
+
+    @Test
     fun `model dimensions match the W8A8 apply_plugin artifact`() {
         NpuMangaColorizationEngine.INPUT_WIDTH shouldBe 576
         NpuMangaColorizationEngine.INPUT_HEIGHT shouldBe 832
@@ -138,6 +155,33 @@ class NpuMangaColorizationEngineTest {
         engine.isAvailable() shouldBe true
         fake.openCalls shouldBe 2
         engine.initializationError() shouldBe null
+    }
+
+    @Test
+    fun `close releases ffdnet engine when present`(@TempDir tempDir: File) {
+        val modelFile = File(tempDir, "model.onnx").apply { writeBytes(byteArrayOf(1)) }
+        var ffdnetClosed = false
+        val ffdnetEngine = FfdnetDenoiserEngine(
+            FfdnetDenoiserEngine.Dependencies(
+                resolveModel = { modelFile },
+                openSession = {
+                    object : FfdnetDenoiserEngine.Dependencies.Session {
+                        override fun run(input: FloatArray, evenHeight: Int, evenWidth: Int): FloatArray = FloatArray(0)
+                        override fun close() {
+                            ffdnetClosed = true
+                        }
+                    }
+                },
+            ),
+        )
+        val engine = NpuMangaColorizationEngine(
+            FakeDeps(artifactResult = { artifact() }).toDependencies(),
+            ffdnetEngine = ffdnetEngine,
+        )
+        engine.isAvailable() shouldBe true
+        ffdnetEngine.isAvailable() shouldBe true
+        engine.close()
+        ffdnetClosed shouldBe true
     }
 
     @Test

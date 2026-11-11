@@ -14,6 +14,14 @@ import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.UUID
 
+/**
+ * JPEG quality for published cleaned/colored images. Line art survives 80
+ * without visible loss and cuts the colored-page file (and its SAF re-read on
+ * every open) roughly in half versus 90. Applies to newly written files only;
+ * existing artifacts keep their original bytes.
+ */
+internal const val CLEANED_JPEG_QUALITY = 80
+
 /** Owns verified cleaned-image files and retirement of superseded images. */
 internal class CleanedPublication(
     private val provider: TranslationFileProvider,
@@ -58,7 +66,7 @@ internal class CleanedPublication(
             val digest = MessageDigest.getInstance("SHA-256")
             imageFile.openOutputStream().use { output ->
                 DigestOutputStream(output, digest).use { digestOutput ->
-                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, 90, digestOutput)) {
+                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, CLEANED_JPEG_QUALITY, digestOutput)) {
                         "JPEG encoding returned false"
                     }
                     digestOutput.flush()

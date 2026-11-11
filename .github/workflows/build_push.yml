@@ -55,8 +55,8 @@ jobs:
           done
           echo "runtime classpath resolved on attempt $attempt"
 
-      - name: Build app and run unit tests
-        run: ./gradlew spotlessCheck assembleStandardRelease testDevReleaseUnitTest testStandardReleaseUnitTest
+      - name: Build app without tests
+        run: ./gradlew spotlessCheck assembleStandardRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3

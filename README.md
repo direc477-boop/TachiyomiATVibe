@@ -1,4 +1,4 @@
-# TachiyomiATVibe v2.1
+# TachiyomiATVibe v2.2
 
 An Android manga reader with a chapter-translation pipeline: on-device text detection and OCR, translation through on-device or configured providers, inpainting, and rendered text overlays. TachiyomiATVibe is a community fork in the TachiyomiAT/Mihon lineage.
 
